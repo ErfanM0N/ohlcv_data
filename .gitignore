@@ -1,0 +1,9 @@
+# Ignore Python bytecode files
+*.pyc
+*/__pycache__/
+
+# mypy
+.mypy_cache/
+
+.env
+.idea/
