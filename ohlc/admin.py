@@ -19,3 +19,9 @@ class ModelNameAdmin(admin.ModelAdmin):
     list_display = ('symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume',)
     list_filter = ('symbol',)
     ordering = ('-timestamp',)
+
+@admin.register(Candle1D)
+class ModelNameAdmin(admin.ModelAdmin):
+    list_display = ('symbol', 'timestamp', 'open', 'high', 'low', 'close', 'volume',)
+    list_filter = ('symbol',)
+    ordering = ('-timestamp',)

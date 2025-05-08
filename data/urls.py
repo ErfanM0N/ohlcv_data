@@ -16,7 +16,18 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
+from ohlc.views import get_1d_view, get_4h_view, get_1h_view, get_15m_view
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('1d/', get_1d_view, name='get_1d'),
+    path('4h/', get_4h_view, name='get_4h'),
+    path('1h/', get_1h_view, name='get_1h'),
+    path('15m/', get_15m_view, name='get_15m'),
 ]
+
+
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
