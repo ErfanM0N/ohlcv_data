@@ -3,6 +3,7 @@ from django.utils.dateparse import parse_datetime
 from .models import Candle1D, Candle4H, Candle1H, Candle15M, Asset
 
 
+
 def get_1d_view(request):
     symbol_name = request.GET.get('symbol')
     min_timestamp = request.GET.get('timestamp')  # ISO format expected, e.g. '2025-05-01T00:00:00Z'
@@ -35,6 +36,7 @@ def get_1d_view(request):
     ]
 
     return JsonResponse({'candles': data})
+
 
 
 def get_4h_view(request):

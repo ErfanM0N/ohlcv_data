@@ -9,6 +9,7 @@ from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
+
 def initialize_candles(asset: Asset):
     api_key = config('BINANCE_API_KEY')
     secret_key = config('BINANCE_SECRET_KEY')
@@ -17,11 +18,11 @@ def initialize_candles(asset: Asset):
 
     try:
         with transaction.atomic():
-            #init_15m_candles(client=client, asset=asset)
+            init_15m_candles(client=client, asset=asset)
 
-            #init_1h_candles(client=client, asset=asset)
+            init_1h_candles(client=client, asset=asset)
 
-            #init_4h_candles(client=client, asset=asset)
+            init_4h_candles(client=client, asset=asset)
 
             init_1d_candles(client=client, asset=asset)
 

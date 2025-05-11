@@ -133,6 +133,34 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
+# data/settings.py
+
+# Celery settings
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Using Redis as the broker
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_TIMEZONE = 'UTC'  # Or your preferred timezone
+
+
+# settings.py
+from celery.schedules import crontab
+
+CELERY_BEAT_SCHEDULE = {
+    'run-ohlc-every-15min': {
+        'task': 'ohlc.tasks.update_15minute_ohlc',
+        'schedule': crontab(minute='0,15,30,45'), # Every 15 minutes
+    },
+    'run-ohlc-every-hour': {
+        'task': 'ohlc.tasks.update_1hour_ohlc',
+        'schedule': crontab(minute=0),  # Every hour at 00 minutes
+    },
+    'run-ohlc-every-4hours': {
+        'task': 'ohlc.tasks.update_4hour_ohlc',
+        'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours at 00 minutes
+    },
+    'run-ohlc-every-day': {
+        'task': 'ohlc.tasks.update_1day_ohlc',
+        'schedule': crontab(minute=0, hour=0),  # Every day at midnight
+    },
+}
