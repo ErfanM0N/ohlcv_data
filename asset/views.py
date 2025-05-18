@@ -1,3 +1,8 @@
-from django.shortcuts import render
+from django.http import JsonResponse
+from .models import Asset
 
-# Create your views here.
+
+def get_symbols_view(request):
+    coins = list(Asset.objects.filter(enable=True).values_list('symbol', flat=True))
+    return JsonResponse({'coins': coins})
+

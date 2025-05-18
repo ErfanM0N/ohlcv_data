@@ -19,6 +19,8 @@ from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
 from ohlc.views import get_1d_view, get_4h_view, get_1h_view, get_15m_view
+from asset.views import get_symbols_view
+
 
 
 urlpatterns = [
@@ -27,6 +29,7 @@ urlpatterns = [
     path('4h/', get_4h_view, name='get_4h'),
     path('1h/', get_1h_view, name='get_1h'),
     path('15m/', get_15m_view, name='get_15m'),
+    path('symbols/', get_symbols_view, name='get_symbols'),
 ]
 
 
