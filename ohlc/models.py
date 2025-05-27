@@ -59,7 +59,7 @@ class Candle4H(models.Model):
 
 
 class Candle1D(models.Model):
-    """Model for 4-hour OHLC candles"""
+    """Model for 1-day OHLC candles"""
     symbol = models.ForeignKey(Asset, on_delete=models.CASCADE)
     timestamp = models.DateTimeField()
     open = models.DecimalField(max_digits=20, decimal_places=8)
