@@ -2,6 +2,9 @@ import logging
 from binance.client import Client
 from binance.enums import *
 from decouple import config
+from asset.models import Asset
+from ohlc.models import Candle4H
+
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,7 @@ client = Client(api_key=api_key, api_secret=secret_key)
 
 #TODO: integrate sl and tp together, if one of them is triggered, the other should be cancelled.
 
-def futures_order(symbol, quantity, side, leverage=1, order_type=ORDER_TYPE_MARKET, tp=None, sl=None):
+def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_TYPE_MARKET):
     """
     Places a futures order on Binance.
 
@@ -20,66 +23,108 @@ def futures_order(symbol, quantity, side, leverage=1, order_type=ORDER_TYPE_MARK
         symbol (str): The trading pair (e.g., 'BTCUSDT').
         quantity (float): The amount of the asset to trade.
         side (str): 'BUY' or 'SELL'.
-        position_side (str): 'LONG' or 'SHORT'. **Crucial for Hedge Mode.**
+        tp (float, optional): Take Profit price. 
+        sl (float, optional): Stop Loss price. 
         leverage (int): The leverage to use for the position.
         order_type (str): The type of order (e.g., 'MARKET', 'LIMIT').
-        tp (float, optional): Take Profit price. Defaults to None.
-        sl (float, optional): Stop Loss price. Defaults to None.
 
     Returns:
         tuple: A tuple containing the main order, take profit order, and stop loss order.
     """
-    order, tp_order, sl_order = None, None, None
+
+    side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
+    position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
+
+    asset = Asset.objects.filter(symbol=symbol).first()
+    if asset is None:
+        logger.error(f"Asset {symbol} not found.")
+        return {"error": f"Asset {symbol} not found."}
+
+    last_candle = Candle4H.objects.filter(symbol=asset).order_by('-timestamp').first()
+    if last_candle is None:
+        logger.error(f"No 4H candle data available for {symbol}.")
+        return {"error": f"No 4H candle data available for {symbol}."}
+
+    last_price = float(last_candle.close)
+    price_precision = len(str(last_price).split('.')[-1])
+    if side == SIDE_BUY:
+        tp = round(last_price * (1 + tp / 100), price_precision)
+        sl = round(last_price * (1 - sl / 100), price_precision)
+    else:
+        tp = round(last_price * (1 - tp / 100), price_precision)
+        sl = round(last_price * (1 + sl / 100), price_precision)
+
 
     try:
         client.futures_change_leverage(symbol=symbol, leverage=leverage)
         
-        binance_side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
-        binance_position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
-
         order_params = {
             'symbol': symbol,
-            'side': binance_side,
-            'positionSide': binance_position_side, 
+            'side': side,
+            'positionSide': position_side,
             'type': order_type,
             'quantity': quantity
         }
 
         order = client.futures_create_order(**order_params)
 
+        side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
+        tp_order = client.futures_create_order(
+            symbol=symbol,
+            side=side,
+            positionSide=position_side, 
+            type="TAKE_PROFIT_MARKET",
+            stopPrice=tp,
+            quantity=quantity,
+            closePosition=False
+        )
+        
+        sl_order = client.futures_create_order(
+            symbol=symbol,
+            side=side,
+            positionSide=position_side,
+            type="STOP_MARKET",
+            stopPrice=sl,
+            quantity=quantity,
+            closePosition=False
+        )
 
-        if tp is not None:
-            tp_side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
-            
-            tp_order = client.futures_create_order(
-                symbol=symbol,
-                side=tp_side,
-                positionSide=binance_position_side, 
-                type="TAKE_PROFIT_MARKET",
-                stopPrice=tp,
-                quantity=quantity,
-                closePosition=False
-            )
-        
-        if sl is not None:
-            sl_side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
-            
-            sl_order = client.futures_create_order(
-                symbol=symbol,
-                side=sl_side,
-                positionSide=binance_position_side,
-                type="STOP_MARKET",
-                stopPrice=sl,
-                quantity=quantity,
-                closePosition=False
-            )
-        
+        return {"data": {
+            "order": order,
+            "tp_order": tp_order,
+            "sl_order": sl_order
+        }}
+
     except Exception as e:
         logger.exception(f"Error placing futures order: {e}")
-
-    return order, tp_order, sl_order
+        return {"error": f"Failed to place futures order. {str(e)}"}
 
 
 def get_positions():
-    positions = client.futures_position_information()
-    return positions
+    try:
+        positions = client.futures_position_information()
+        return positions
+    except Exception as e:
+        logger.exception(f"Error fetching futures positions: {e}")
+        return {"error": f"Failed to fetch futures positions. ({str(e)})", "code": 500}
+
+
+def get_balance():
+    try:
+        balances = client.futures_account_balance()
+        balance = next((item for item in balances if item['asset'] == 'USDT'), None)
+        
+        if balance is None:
+            logger.error("USDT balance not found in futures account.")
+            return {"error": "USDT balance not found in futures account.", "code": 400}
+
+        balance = {
+            "balance": float(balance['balance']),
+            "availableBalance": float(balance['availableBalance']),
+            "crossUnPnl": float(balance['crossUnPnl'])
+        }
+        return balance
+
+    except Exception as e:
+        logger.exception(f"Error fetching futures account balance: {e}")
+        return {"error": f"Failed to fetch futures account balance. ({str(e)})", "code": 500}

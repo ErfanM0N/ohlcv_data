@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 import logging
-from .utils import get_positions, futures_order
+from .utils import get_positions, futures_order, get_balance
 import json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -8,12 +8,17 @@ logger = logging.getLogger(__name__)
 
 
 def get_positions_view(request):
-    try:
-        positions = get_positions()
-        return JsonResponse({'positions': positions})
-    except Exception as e:
-        logger.exception("Error fetching positions")
-        return JsonResponse({'error': str(e)}, status=500)
+    positions = get_positions()
+    if 'error' in positions:
+        return JsonResponse({'error': positions['error'], 'data': {}}, status=positions.get('code', 500))
+    return JsonResponse({'data': positions}, status=200)
+
+
+def get_balance_view(request):
+    balance = get_balance()
+    if 'error' in balance:
+        return JsonResponse({'error': balance['error'], 'data': {}}, status=balance.get('code', 500))
+    return JsonResponse({'data': balance}, status=200)
 
 
 @csrf_exempt
@@ -24,29 +29,35 @@ def place_futures_order_view(request):
     try:
         data = json.loads(request.body)
 
-        symbol = data['symbol']
-        quantity = float(data['quantity'])
-        side = data['side']
-        leverage = int(data.get('leverage', 1))
-        order_type = data.get('order_type')
+        symbol = data.get('symbol')
+        quantity = data.get('quantity')
+        side = data.get('side')
         tp = data.get('tp')
         sl = data.get('sl')
+        leverage = int(data.get('leverage', 1))
 
-        order, tp_order, sl_order = futures_order(
+        if not all([symbol, quantity, side, tp, sl]):
+            return JsonResponse({'error': 'All fields (symbol, quantity, side, tp, sl) are required.'}, status=400)
+
+        quantity = float(quantity)
+        tp = float(tp)
+        sl = float(sl)
+
+        json_response = futures_order(
             symbol=symbol,
             quantity=quantity,
             side=side,
-            leverage=leverage,
-            order_type=order_type,
             tp=tp,
-            sl=sl
+            sl=sl,
+            leverage=leverage
         )
 
         return JsonResponse({
-            'order': order,
-            'tp_order': tp_order,
-            'sl_order': sl_order
-        })
+            'data': json_response.get('data', {}),
+            'error': json_response.get('error', None)
+        },
+        status=200 if 'data' in json_response else 400
+        )
 
     except Exception as e:
         logger.exception("Error in place_futures_order_view")
