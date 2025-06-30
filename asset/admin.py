@@ -5,7 +5,7 @@ from ohlc.utils.init_candles import initialize_candles
 
 @admin.register(Asset)
 class AssetAdmin(admin.ModelAdmin):
-    list_display = ('symbol', 'enable', 'updated', 'last_price')
+    list_display = ('symbol', 'enable', 'updated', 'last_price', 'leverage')
     list_editable = ('enable',)
     search_fields = ('symbol',)
     actions = ('refill_asset',)

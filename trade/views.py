@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 import logging
-from .utils import get_positions, futures_order, get_balance
+from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders
 import json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -43,7 +43,7 @@ def place_futures_order_view(request):
         tp = float(tp)
         sl = float(sl)
 
-        json_response = futures_order(
+        response = futures_order(
             symbol=symbol,
             quantity=quantity,
             side=side,
@@ -52,11 +52,24 @@ def place_futures_order_view(request):
             leverage=leverage
         )
 
+        if response.get('code') == 401:
+            cancel_orders(
+                response.get('data', {}).get('order'),
+                response.get('data', {}).get('tp_order'),
+                response.get('data', {}).get('sl_order')
+            )
+        elif response.get('code') == 200:
+            save_orders(
+                response.get('data', {}).get('order'),
+                response.get('data', {}).get('tp_order'),
+                response.get('data', {}).get('sl_order')
+            )
+
         return JsonResponse({
-            'data': json_response.get('data', {}),
-            'error': json_response.get('error', None)
+            'data': response.get('data', {}),
+            'error': response.get('error', None)
         },
-        status=200 if 'data' in json_response else 400
+        status=200 if 'data' in response else 400
         )
 
     except Exception as e:

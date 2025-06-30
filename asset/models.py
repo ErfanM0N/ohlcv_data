@@ -6,6 +6,7 @@ class Asset(models.Model):
     enable = models.BooleanField(default=True)
     updated = models.DateTimeField(auto_now=True)
     last_price = models.FloatField(default=0.0)
+    leverage = models.IntegerField(default=1)
 
     def __str__(self):
         return self.symbol

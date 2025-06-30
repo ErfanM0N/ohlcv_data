@@ -26,10 +26,9 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         sl (float, optional): Stop Loss price. 
         leverage (int): The leverage to use for the position.
         order_type (str): The type of order (e.g., 'MARKET', 'LIMIT').
-
-    Returns:
-        tuple: A tuple containing the main order, take profit order, and stop loss order.
     """
+
+    order, tp_order, sl_order = {}, {}, {}
 
     side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
     position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
@@ -37,7 +36,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
     asset = Asset.objects.filter(symbol=symbol).first()
     if asset is None:
         logger.error(f"Asset {symbol} not found.")
-        return {"error": f"Asset {symbol} not found."}
+        return {"error": f"Asset {symbol} not found.", "code": 404}
 
     last_price = float(asset.last_price)
     price_precision = len(str(last_price).split('.')[-1])
@@ -50,8 +49,16 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
 
 
     try:
-        client.futures_change_leverage(symbol=symbol, leverage=leverage)
-        
+        if asset.leverage != leverage:
+            logger.info(f"Changing leverage for {symbol} from {asset.leverage} to {leverage}.")
+            client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            asset.leverage = leverage
+            asset.save()
+    except Exception as e:
+        logger.exception(f"Error changing leverage for {symbol}: {e}")
+        return {"error": f"Failed to change leverage for {symbol}. ({str(e)})", "code": 500}
+    
+    try:
         order_params = {
             'symbol': symbol,
             'side': side,
@@ -61,7 +68,13 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         }
 
         order = client.futures_create_order(**order_params)
+        logger.info(f"Placed futures order: {order.get('orderId')} for {symbol} at {last_price} with leverage {leverage}")
+        
+    except Exception as e:
+        logger.exception(f"Error opening futures position: {e}, symbol: {symbol}")
+        return {"error": f"Failed to open futures position. ({str(e)})", "code": 400}
 
+    try:
         side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
         tp_order = client.futures_create_order(
             symbol=symbol,
@@ -82,16 +95,53 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
             quantity=quantity,
             closePosition=False
         )
+        logger.info(f"Placed TP order: {tp_order.get('orderId')}, SL order: {sl_order.get('orderId')}, symbol: {symbol}")
 
         return {"data": {
             "order": order,
             "tp_order": tp_order,
             "sl_order": sl_order
-        }}
+        }, "code": 200}
 
     except Exception as e:
-        logger.exception(f"Error placing futures order: {e}")
-        return {"error": f"Failed to place futures order. {str(e)}"}
+        logger.exception(f"Error placing futures orders: {e}, symbol: {symbol}")
+        return {"data": {
+            "order": order,
+            "tp_order": tp_order,
+            "sl_order": sl_order
+        },"error": f"Failed to place futures orders. ({str(e)})", "code": 401}
+
+
+def cancel_orders(order, tp_order, sl_order):
+    try:
+        if order:
+            side = SIDE_SELL if order['side'].lower() == 'buy' else SIDE_BUY
+            position_side = order['positionSide']
+            quantity = float(order['origQty'])
+            symbol = order['symbol']
+
+            client.futures_create_order(
+                symbol=symbol,
+                side=side,
+                type='MARKET',
+                quantity=quantity,
+                positionSide=position_side
+            )
+            logger.info(f"Closed position: {order['orderId']}, symbol: {symbol}")
+        if tp_order:
+            client.futures_cancel_order(symbol=tp_order['symbol'], orderId=tp_order['orderId'])
+            logger.info(f"Cancelled TP order: {tp_order['orderId']}, symbol: {tp_order['symbol']}")
+        if sl_order:
+            client.futures_cancel_order(symbol=sl_order['symbol'], orderId=sl_order['orderId'])
+            logger.info(f"Cancelled SL order: {sl_order['orderId']}, symbol: {sl_order['symbol']}")
+
+    except Exception as e:
+        logger.exception(f"Error cancelling orders: {e}")
+
+
+def save_orders(order, tp_order, sl_order):
+    
+    pass
 
 
 def get_positions():
