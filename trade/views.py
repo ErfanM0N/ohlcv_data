@@ -62,7 +62,8 @@ def place_futures_order_view(request):
             save_orders(
                 response.get('data', {}).get('order'),
                 response.get('data', {}).get('tp_order'),
-                response.get('data', {}).get('sl_order')
+                response.get('data', {}).get('sl_order'),
+                leverage=leverage
             )
 
         return JsonResponse({

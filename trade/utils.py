@@ -3,6 +3,7 @@ from binance.client import Client
 from binance.enums import *
 from decouple import config
 from asset.models import Asset
+from trade.models import Position, Order
 
 
 logger = logging.getLogger(__name__)
@@ -11,8 +12,6 @@ api_key = config('BINANCE_API_KEY')
 secret_key = config('BINANCE_SECRET_KEY')
 client = Client(api_key=api_key, api_secret=secret_key)
 
-
-#TODO: integrate sl and tp together, if one of them is triggered, the other should be cancelled.
 
 def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_TYPE_MARKET):
     """
@@ -139,9 +138,36 @@ def cancel_orders(order, tp_order, sl_order):
         logger.exception(f"Error cancelling orders: {e}")
 
 
-def save_orders(order, tp_order, sl_order):
-    
-    pass
+def save_orders(order, tp_order, sl_order, leverage=1):
+    order = client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])
+    position = Position.objects.create(
+        asset=Asset.objects.get(symbol=order['symbol']),
+        side='BUY' if order['side'] == SIDE_BUY else 'SELL',
+        quantity=float(order['origQty']),
+        order_id=order['orderId'],
+        entry_price=float(order['avgPrice']),
+        leverage=leverage,
+        status='OPEN'
+    )
+    logger.info(f"Saved position: {position.order_id} for {position.asset.symbol} at {position.entry_price}")
+
+    Order.objects.create(
+        position=position,
+        order_type='TP',
+        price=float(tp_order['stopPrice']),
+        order_id=tp_order['orderId'],
+        status='PENDING'
+    )
+    logger.info(f"Saved TP order: {tp_order['orderId']} for position: {position.order_id}")
+
+    Order.objects.create(
+        position=position,
+        order_type='SL',
+        price=float(sl_order['stopPrice']),
+        order_id=sl_order['orderId'],
+        status='PENDING'
+    )
+    logger.info(f"Saved SL order: {sl_order['orderId']} for position: {position.order_id}")
 
 
 def get_positions():
