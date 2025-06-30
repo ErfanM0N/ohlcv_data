@@ -3,7 +3,6 @@ from binance.client import Client
 from binance.enums import *
 from decouple import config
 from asset.models import Asset
-from ohlc.models import Candle4H
 
 
 logger = logging.getLogger(__name__)
@@ -40,12 +39,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         logger.error(f"Asset {symbol} not found.")
         return {"error": f"Asset {symbol} not found."}
 
-    last_candle = Candle4H.objects.filter(symbol=asset).order_by('-timestamp').first()
-    if last_candle is None:
-        logger.error(f"No 4H candle data available for {symbol}.")
-        return {"error": f"No 4H candle data available for {symbol}."}
-
-    last_price = float(last_candle.close)
+    last_price = float(asset.last_price)
     price_precision = len(str(last_price).split('.')[-1])
     if side == SIDE_BUY:
         tp = round(last_price * (1 + tp / 100), price_precision)
