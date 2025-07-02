@@ -34,13 +34,13 @@ def place_futures_order_view(request):
 
     try:
         data = json.loads(request.body)
-
         symbol = data.get('symbol')
         quantity = data.get('quantity')
         side = data.get('side')
         tp = data.get('tp')
         sl = data.get('sl')
         leverage = int(data.get('leverage', 1))
+        trading_model = data.get('trading_model')
 
         if not all([symbol, quantity, side, tp, sl]):
             return JsonResponse({'error': 'All fields (symbol, quantity, side, tp, sl) are required.'}, status=400)
@@ -55,7 +55,8 @@ def place_futures_order_view(request):
             side=side,
             tp=tp,
             sl=sl,
-            leverage=leverage
+            leverage=leverage,
+            trading_model=trading_model
         )
 
         if response.get('code') == 401:
@@ -69,14 +70,15 @@ def place_futures_order_view(request):
                 response.get('data', {}).get('order'),
                 response.get('data', {}).get('tp_order'),
                 response.get('data', {}).get('sl_order'),
-                leverage=leverage
+                leverage=leverage,
+                trading_model=trading_model
             )
 
         return JsonResponse({
             'data': response.get('data', {}),
             'error': response.get('error', None)
         },
-        status=200 if 'data' in response else 400
+        status=200 if 'data' in response else response.get('code', 400)
         )
 
     except Exception as e:

@@ -11,9 +11,9 @@ class OrderInline(admin.TabularInline):
 
 @admin.register(Position)
 class PositionAdmin(admin.ModelAdmin):
-    list_display = ('asset', 'side', 'quantity', 'order_id', 'entry_price', 'entry_time', 'exit_price', 'exit_time', 'leverage', 'pnl', 'status')
+    list_display = ('asset', 'side', 'quantity', 'order_id', 'entry_price', 'entry_time', 'exit_price', 'exit_time', 'leverage', 'pnl', 'status', 'trading_model')
     search_fields = ('asset__symbol', 'order_id')
-    list_filter = ('side', 'status', 'asset__symbol')
+    list_filter = ('side', 'status', 'asset__symbol', 'trading_model')
     ordering = ('-entry_time',)
     readonly_fields = ('pnl',)
     inlines = [OrderInline]

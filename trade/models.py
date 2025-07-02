@@ -16,6 +16,8 @@ class Position(models.Model):
     leverage = models.IntegerField(default=1)
     pnl = models.FloatField(default=0.0)
     status = models.CharField(max_length=6, choices=STATUSS, default='OPEN')
+    trading_model = models.CharField(max_length=50, null=True, blank=True)
+    telegram_message_id = models.IntegerField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.asset.symbol} - {self.side} - {self.quantity} @ {self.order_id}"
