@@ -60,7 +60,7 @@ class Command(BaseCommand):
                                 position.pnl = (position.entry_price - order.price) * position.quantity
                             position.save(update_fields=['status', 'exit_price', 'exit_time', 'pnl'])
                             logger.info(f"Closed position for {asset.symbol}, order {position.order_id}")
-                            msg = f"💵💵Position {position.order_id} closed with PnL: {position.pnl}\n" + msg
+                            msg = f"💵Position {position.order_id} for {position.asset.symbol} closed\n💰💰with PnL: {round(position.pnl, 5)}\n" + msg
 
                             # Cancel the reverse order (TP or SL)
                             if order.order_type == 'TP':
