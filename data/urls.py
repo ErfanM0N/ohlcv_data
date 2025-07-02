@@ -20,7 +20,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from ohlc.views import get_1d_view, get_4h_view, get_1h_view, get_15m_view
 from asset.views import get_symbols_view
-from trade.views import get_positions_view, place_futures_order_view, get_balance_view
+from trade.views import get_positions_view, place_futures_order_view, get_balance_view, get_trade_history_view
 
 
 
@@ -34,7 +34,7 @@ urlpatterns = [
     path('positions/', get_positions_view, name='get_positions'),
     path('place_order/', place_futures_order_view, name='place_futures_order'),
     path('balance/', get_balance_view, name='get_balance'),
-    
+    path('trade_history/', get_trade_history_view, name='get_trade_history'),  # Assuming this is the correct view for trade history
 
 ]
 

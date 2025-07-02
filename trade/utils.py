@@ -4,7 +4,7 @@ from binance.enums import *
 from decouple import config
 from asset.models import Asset
 from trade.models import Position, Order
-
+from django.db.models import F
 
 logger = logging.getLogger(__name__)
 
@@ -172,7 +172,30 @@ def save_orders(order, tp_order, sl_order, leverage=1):
 
 def get_positions():
     try:
-        positions = client.futures_position_information()
+        positions = list(Position.objects.filter(status='OPEN').values(
+            'id', 'asset__symbol', 'side', 'quantity', 'order_id', 
+            'entry_price', 'entry_time', 'leverage'
+        ))
+
+        for p in positions:
+            p['symbol'] = p.pop('asset__symbol')
+
+        return positions
+    except Exception as e:
+        logger.exception(f"Error fetching futures positions: {e}")
+        return {"error": f"Failed to fetch futures positions. ({str(e)})", "code": 500}
+
+
+def get_history():
+    try:
+        positions = list(Position.objects.filter(status='CLOSED').values(
+            'id', 'asset__symbol', 'side', 'quantity', 'order_id', 
+            'entry_price', 'entry_time', 'leverage', 'exit_price', 'exit_time', 'pnl'
+        ))
+
+        for p in positions:
+            p['symbol'] = p.pop('asset__symbol')
+            
         return positions
     except Exception as e:
         logger.exception(f"Error fetching futures positions: {e}")

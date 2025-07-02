@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 import logging
-from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders
+from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders, get_history
 import json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -9,6 +9,12 @@ logger = logging.getLogger(__name__)
 
 def get_positions_view(request):
     positions = get_positions()
+    if 'error' in positions:
+        return JsonResponse({'error': positions['error'], 'data': {}}, status=positions.get('code', 500))
+    return JsonResponse({'data': positions}, status=200)
+
+def get_trade_history_view(request):
+    positions = get_history()
     if 'error' in positions:
         return JsonResponse({'error': positions['error'], 'data': {}}, status=positions.get('code', 500))
     return JsonResponse({'data': positions}, status=200)
