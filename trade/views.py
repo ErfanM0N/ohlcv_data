@@ -63,7 +63,8 @@ def place_futures_order_view(request):
             cancel_orders(
                 response.get('data', {}).get('order'),
                 response.get('data', {}).get('tp_order'),
-                response.get('data', {}).get('sl_order')
+                response.get('data', {}).get('sl_order'),
+                symbol=symbol
             )
         elif response.get('code') == 200:
             save_orders(
@@ -78,7 +79,7 @@ def place_futures_order_view(request):
             'data': response.get('data', {}),
             'error': response.get('error', None)
         },
-        status=200 if 'data' in response else response.get('code', 400)
+        status=response.get('code', 400)
         )
 
     except Exception as e:

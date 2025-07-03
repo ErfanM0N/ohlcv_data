@@ -140,8 +140,8 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         },"error": f"Failed to place futures orders. ({str(e)})", "code": 401}
 
 
-def cancel_orders(order, tp_order, sl_order):
-    msg = f"❌❌Failed to place futures order, Error opening TP/SL Orders for {symbol} ({str(e)}) \n"
+def cancel_orders(order, tp_order, sl_order, symbol):
+    msg = f"❌❌Failed to place futures order, Error opening TP/SL Orders for {symbol}\n"
     try:
         if order:
             side = SIDE_SELL if order['side'].lower() == 'buy' else SIDE_BUY
