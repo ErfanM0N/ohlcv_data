@@ -15,6 +15,7 @@ def update_15minute_ohlc(limit=5):
     api_key = config('BINANCE_API_KEY')
     secret_key = config('BINANCE_SECRET_KEY')
 
+
     client = Client(api_key=api_key, api_secret=secret_key)
 
     now = int(datetime.now(timezone.utc).timestamp() * 1000)

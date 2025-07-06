@@ -164,6 +164,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'ohlc.tasks.update_1day_ohlc',
         'schedule': crontab(minute=0, hour=0),  # Every day at midnight
     },
+    'balance-report': {
+        'task': 'trade.tasks.balance_report',
+        'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
+    },
 }
 
 LOGGING = {

@@ -41,6 +41,7 @@ def place_futures_order_view(request):
         sl = data.get('sl')
         leverage = int(data.get('leverage', 1))
         trading_model = data.get('trading_model')
+        probability = float(data.get('probability', -1))
 
         if not all([symbol, quantity, side, tp, sl]):
             return JsonResponse({'error': 'All fields (symbol, quantity, side, tp, sl) are required.'}, status=400)
@@ -72,7 +73,8 @@ def place_futures_order_view(request):
                 response.get('data', {}).get('tp_order'),
                 response.get('data', {}).get('sl_order'),
                 leverage=leverage,
-                trading_model=trading_model
+                trading_model=trading_model,
+                probability=probability
             )
 
         return JsonResponse({

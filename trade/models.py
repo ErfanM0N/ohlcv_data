@@ -18,6 +18,7 @@ class Position(models.Model):
     status = models.CharField(max_length=6, choices=STATUSS, default='OPEN')
     trading_model = models.CharField(max_length=50, null=True, blank=True)
     telegram_message_id = models.IntegerField(null=True, blank=True)
+    probability = models.FloatField(default=-1)
 
     def __str__(self):
         return f"{self.asset.symbol} - {self.side} - {self.quantity} @ {self.order_id}"

@@ -173,7 +173,7 @@ def cancel_orders(order, tp_order, sl_order, symbol):
         logger.exception(f"❗️❗️❗️Error cancelling orders: {e}\n close the position manually if needed.")
 
 
-def save_orders(order, tp_order, sl_order, leverage=1, trading_model=None):
+def save_orders(order, tp_order, sl_order, leverage=1, trading_model=None, probability=-1):
     msg = f"Position opened: {order['orderId']} for {order['symbol']} at {order['avgPrice']} with leverage {leverage}\n"
     order = client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])
     position = Position.objects.create(
@@ -184,7 +184,8 @@ def save_orders(order, tp_order, sl_order, leverage=1, trading_model=None):
         entry_price=float(order['avgPrice']),
         leverage=leverage,
         status='OPEN',
-        trading_model=trading_model
+        trading_model=trading_model,
+        probability=probability
     )
     msg = f"❗️New Position:\n {order['symbol']} \n{order['orderId']} \n{order['side']}\n at {order['avgPrice']} \nquantity: {order['origQty']}\n\n"
     logger.info(f"Saved position: {position.order_id} for {position.asset.symbol} at {position.entry_price}")
@@ -265,3 +266,24 @@ def get_balance():
     except Exception as e:
         logger.exception(f"Error fetching futures account balance: {e}")
         return {"error": f"Failed to fetch futures account balance. ({str(e)})", "code": 500}
+
+def get_spot_balance():
+    try:
+        account_info = client.get_account()
+        balances = account_info['balances']
+        usdt_balance = next((item for item in balances if item['asset'] == 'USDT'), None)
+        
+        if usdt_balance is None:
+            logger.error("USDT balance not found in spot account.")
+            return {"error": "USDT balance not found in spot account.", "code": 400}
+
+        balance = {
+            "balance": float(usdt_balance['free']),
+            "availableBalance": float(usdt_balance['free']),
+            "crossUnPnl": 0.0
+        }
+        return balance
+
+    except Exception as e:
+        logger.exception(f"Error fetching spot account balance: {e}")
+        return {"error": f"Failed to fetch spot account balance. ({str(e)})", "code": 500}
