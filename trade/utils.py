@@ -15,6 +15,24 @@ client = Client(api_key=api_key, api_secret=secret_key)
 
 BOT_TOKEN = config("BOT_TOKEN")
 CHANNEL_ID = config("CHANNEL_ID")
+HEALTH_CHECK_ID = config("HEALTH_CHECK_ID")
+
+
+def send_health_check_message(text):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": HEALTH_CHECK_ID,
+        "text": text,
+    }
+    
+    try:
+        response = requests.post(url, json=payload)
+        response.raise_for_status() 
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending Telegram message: {e}")
+        return None
 
 
 def send_bot_message(text, reply_msg_id=None):

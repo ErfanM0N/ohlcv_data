@@ -36,3 +36,14 @@ class Order(models.Model):
 
     def __str__(self):
         return f"{self.order_id}"
+
+
+class BalanceRecord(models.Model):
+    total_balance = models.FloatField()
+    trade_pocket_balance = models.FloatField()
+    unrealized_pnl = models.FloatField()
+    unrealized_trade_balance = models.FloatField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.total_balance} at {self.timestamp}"

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Position, Order
+from .models import Position, Order, BalanceRecord
 
 
 class OrderInline(admin.TabularInline):  
@@ -18,6 +18,7 @@ class PositionAdmin(admin.ModelAdmin):
     readonly_fields = ('pnl',)
     inlines = [OrderInline]
 
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('position', 'order_type', 'price', 'order_id', 'status')
@@ -25,3 +26,10 @@ class OrderAdmin(admin.ModelAdmin):
     list_filter = ('order_type', 'status')
     ordering = ('-position__entry_time',)
 
+
+@admin.register(BalanceRecord)
+class BalanceRecordAdmin(admin.ModelAdmin):
+    list_display = ('total_balance', 'trade_pocket_balance', 'unrealized_pnl', 'unrealized_trade_balance', 'timestamp')
+    search_fields = ('total_balance', 'trade_pocket_balance')
+    ordering = ('-timestamp',)
+    readonly_fields = ('total_balance', 'trade_pocket_balance', 'unrealized_pnl', 'unrealized_trade_balance')
