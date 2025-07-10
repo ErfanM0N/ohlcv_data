@@ -3,7 +3,7 @@ from binance.client import Client
 from binance.enums import *
 from decouple import config
 from asset.models import Asset
-from trade.models import Position, Order
+from trade.models import Position, Order, OneWayPosition
 import requests
 import json 
 
@@ -16,6 +16,7 @@ client = Client(api_key=api_key, api_secret=secret_key)
 BOT_TOKEN = config("BOT_TOKEN")
 CHANNEL_ID = config("CHANNEL_ID")
 HEALTH_CHECK_ID = config("HEALTH_CHECK_ID")
+
 
 
 def send_health_check_message(text):
@@ -54,6 +55,128 @@ def send_bot_message(text, reply_msg_id=None):
         logger.error(f"Error sending Telegram message: {e}")
         return None
 
+
+def open_position(symbol, quantity, side, leverage=1, trading_model=None, probability=-1):
+    """
+    Opens a new position on Binance.
+    """
+
+    side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
+
+    # Get asset
+    asset = Asset.objects.filter(symbol=symbol).first()
+    if asset is None:
+        logger.error(f"Asset {symbol} not found.")
+        send_bot_message(f"❌❌Failed to place futures order, Asset {symbol} not found.")
+        return {"error": f"Asset {symbol} not found.", "code": 404}
+
+    # Get last price
+    last_price = float(asset.last_price)
+
+
+    # Change leverage if needed
+    try:
+        if asset.leverage != leverage:
+            logger.info(f"Changing leverage for {symbol} from {asset.leverage} to {leverage}.")
+            client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            asset.leverage = leverage
+            asset.save()
+    except Exception as e:
+        logger.error(f"Error changing leverage for {symbol}: {e}")
+        send_bot_message(f"❌❌Failed to place futures order, Leverage change failed for {symbol}")
+        return {"error": f"Failed to change leverage for {symbol}. ({str(e)})", "code": 500}
+
+
+    # Open position
+    try:
+        order_params = {
+            'symbol': symbol,
+            'side': side,
+            'type': ORDER_TYPE_MARKET,
+            'quantity': quantity
+        }
+
+        order = client.futures_create_order(**order_params)
+        logger.info(f"Placed futures order: {order.get('orderId')} for {symbol} at {last_price} with leverage {leverage}")
+        save_position(order, leverage=leverage, trading_model=trading_model, probability=probability)
+
+        return {"data": {
+            "order": order
+        }, "code": 200}
+
+    except Exception as e:
+        logger.error(f"Error opening futures position: {e}, symbol: {symbol}")
+        send_bot_message(f"❌❌Failed to place futures order, Error opening position for {symbol} ({str(e)})")
+        return {"error": f"Failed to open futures position. ({str(e)})", "code": 400}
+    
+
+def save_position(order, leverage=1, trading_model=None, probability=-1):
+    order = client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])
+
+    position = OneWayPosition.objects.create(
+        asset=Asset.objects.get(symbol=order['symbol']),
+        side='BUY' if order['side'] == SIDE_BUY else 'SELL',
+        quantity=float(order['origQty']),
+        order_id=order['orderId'],
+        entry_price=float(order['avgPrice']),
+        leverage=leverage,
+        trading_model=trading_model,
+        probability=probability
+    )
+
+    notional = float(order['avgPrice']) * float(order['origQty'])
+    msg = f"❗️New Position:\nSymbol: {order['symbol']} \nOrder ID: {order['orderId']} \nSide: {order['side']}\nEntry Price: {order['avgPrice']} \nQuantity: {order['origQty']} \nLeverage: {leverage} \nNominal: {notional:.2f}$"
+    rsp = send_bot_message(msg)
+
+    msg_id = rsp.get('result', {}).get('message_id')
+    if msg_id:
+        position.telegram_message_id = msg_id
+        position.save()
+        logger.info(f"Telegram message sent: {msg_id}")
+    logger.info(msg)
+
+
+def get_open_positions():
+    """
+    Retrieves the currently open position on Binance.
+    """
+    try:
+        positions_raw = client.futures_position_information()
+        positions = [
+            {
+            "symbol": p["symbol"],
+            "positionAmt": p["positionAmt"],
+            "unRealizedProfit": p["unRealizedProfit"],
+            "notional": p["notional"],
+            "entryPrice": p["breakEvenPrice"],
+            }
+            for p in positions_raw
+        ]
+        return {"data": positions, "code": 200}
+
+    except Exception as e:
+        logger.exception(f"Error fetching open position: {e}")
+        return {"error": f"Failed to fetch open position. ({str(e)})", "code": 500}
+
+
+def get_position_history(start_time=None, symbol=None):
+    """
+    Retrieves the position history from Binance.
+    """
+    positions = OneWayPosition.objects.all()
+    if start_time:
+        positions = positions.filter(entry_time__gte=start_time)
+    if symbol:
+        positions = positions.filter(asset__symbol=symbol)
+
+    result = list(positions.values(
+        'id', 'asset__symbol', 'side', 'quantity', 'order_id',
+        'entry_price', 'entry_time', 'leverage', 'trading_model', 
+        'probability', 'telegram_message_id'
+    ))
+    for item in result:
+        item['symbol'] = item.pop('asset__symbol')
+    return result
 
 
 def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_TYPE_MARKET, trading_model=None):
@@ -284,6 +407,7 @@ def get_balance():
     except Exception as e:
         logger.exception(f"Error fetching futures account balance: {e}")
         return {"error": f"Failed to fetch futures account balance. ({str(e)})", "code": 500}
+
 
 def get_spot_balance():
     try:

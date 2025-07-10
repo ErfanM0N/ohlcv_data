@@ -1,6 +1,7 @@
 from django.db import models
 from asset.models import Asset
 
+
 class Position(models.Model):
     SIDES = (('BUY', 'Buy'), ('SELL', 'Sell'))
     STATUSS = (('OPEN', 'Open'), ('CLOSED', 'Closed'))
@@ -22,6 +23,22 @@ class Position(models.Model):
 
     def __str__(self):
         return f"{self.asset.symbol} - {self.side} - {self.quantity} @ {self.order_id}"
+
+
+class OneWayPosition(models.Model):
+    SIDES = (('BUY', 'Buy'), ('SELL', 'Sell'))
+
+    asset = models.ForeignKey(Asset, on_delete=models.CASCADE)
+    side = models.CharField(max_length=4, choices=SIDES)
+    quantity = models.FloatField()
+    order_id = models.CharField(max_length=32, unique=True)
+    entry_price = models.FloatField()
+    entry_time = models.DateTimeField(auto_now_add=True)
+
+    leverage = models.IntegerField(default=1)
+    trading_model = models.CharField(max_length=50, null=True, blank=True)
+    telegram_message_id = models.IntegerField(null=True, blank=True)
+    probability = models.FloatField(default=-1)
 
 
 class Order(models.Model):

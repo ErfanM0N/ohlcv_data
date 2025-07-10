@@ -1,6 +1,6 @@
 from django.http import JsonResponse
 import logging
-from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders, get_history
+from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders, get_history, open_position, get_position_history, get_open_positions
 import json
 from django.views.decorators.csrf import csrf_exempt
 
@@ -87,3 +87,56 @@ def place_futures_order_view(request):
     except Exception as e:
         logger.exception("Error in place_futures_order_view")
         return JsonResponse({'error': str(e)}, status=400)
+    
+
+@csrf_exempt
+def open_position_view(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        symbol = data.get('symbol')
+        quantity = data.get('quantity')
+        side = data.get('side')
+        leverage = int(data.get('leverage', 1))
+        trading_model = data.get('trading_model')
+        probability = float(data.get('probability', -1))
+
+        if not all([symbol, quantity, side]):
+            return JsonResponse({'error': 'All fields (symbol, quantity, side) are required.'}, status=400)
+
+        quantity = float(quantity)
+
+        response = open_position(
+            symbol=symbol,
+            quantity=quantity,
+            side=side,
+            leverage=leverage,
+            trading_model=trading_model,
+            probability=probability
+        )
+
+        return JsonResponse({
+            'data': response.get('data', {}),
+            'error': response.get('error', None)
+        },
+        status=response.get('code', 400)
+        )
+
+    except Exception as e:
+        logger.error("Error in Open Position View")
+        return JsonResponse({'error': str(e)}, status=400)
+
+def get_position_history_view(request):
+    symbol = request.GET.get('symbol')
+    start_time = request.GET.get('start_time')
+    positions = get_position_history(start_time=start_time, symbol=symbol)
+    return JsonResponse({'data': positions}, status=200)
+
+
+def get_open_positions_view(request):
+    positions = get_open_positions()
+    if 'error' in positions:
+        return JsonResponse({'error': positions['error'], 'data': {}}, status=positions.get('code', 500))
+    return JsonResponse({'data': positions.get('data', [])}, status=200)
