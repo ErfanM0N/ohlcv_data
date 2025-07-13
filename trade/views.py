@@ -3,6 +3,10 @@ import logging
 from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders, get_history, open_position, get_position_history, get_open_positions
 import json
 from django.views.decorators.csrf import csrf_exempt
+from trade.models import Position, OneWayPosition
+from datetime import datetime
+from asset.models import Asset
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +47,29 @@ def place_futures_order_view(request):
         trading_model = data.get('trading_model')
         probability = float(data.get('probability', -1))
 
+        asset = Asset.objects.filter(symbol=symbol.upper()).first()
+        if asset:
+            OneWayPosition.objects.create(
+                asset=asset,
+                order_id=int(datetime.now().timestamp()),
+                quantity=quantity,
+                entry_price=asset.last_price,
+                side=side.upper(),
+                leverage=leverage,
+                probability=probability
+            )
+
+        logger.info(f"OneWayPosition created: {symbol} - {quantity} - {side} - {leverage}") 
+
         if not all([symbol, quantity, side, tp, sl]):
             return JsonResponse({'error': 'All fields (symbol, quantity, side, tp, sl) are required.'}, status=400)
 
+        # Handle with MastMali
+        open_positions_count = Position.objects.filter(status='OPEN').count()
+        if open_positions_count >= 5:
+            return JsonResponse({'error': 'max position limit reached'}, status=400)
+        #######################
+        
         quantity = float(quantity)
         tp = float(tp)
         sl = float(sl)

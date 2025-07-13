@@ -6,6 +6,7 @@ from asset.models import Asset
 from trade.models import Position, Order, OneWayPosition
 import requests
 import json 
+from time import sleep
 
 logger = logging.getLogger(__name__)
 
@@ -199,21 +200,11 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
     side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
     position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
 
-    asset = Asset.objects.filter(symbol=symbol).first()
+    asset = Asset.objects.filter(symbol=symbol, enable=True).first()
     if asset is None:
         logger.error(f"Asset {symbol} not found.")
         send_bot_message(f"❌❌Failed to place futures order, Asset {symbol} not found.")
         return {"error": f"Asset {symbol} not found.", "code": 404}
-
-    last_price = float(asset.last_price)
-    price_precision = len(str(last_price).split('.')[-1])
-    if side == SIDE_BUY:
-        tp = round(last_price * (1 + tp / 100), price_precision)
-        sl = round(last_price * (1 - sl / 100), price_precision)
-    else:
-        tp = round(last_price * (1 - tp / 100), price_precision)
-        sl = round(last_price * (1 + sl / 100), price_precision)
-
 
     try:
         if asset.leverage != leverage:
@@ -236,7 +227,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         }
 
         order = client.futures_create_order(**order_params)
-        logger.info(f"Placed futures order: {order.get('orderId')} for {symbol} at {last_price} with leverage {leverage}")
+        logger.info(f"Placed futures order: {order.get('orderId')} for {symbol} with leverage {leverage}")
         
     except Exception as e:
         logger.exception(f"Error opening futures position: {e}, symbol: {symbol}")
@@ -244,6 +235,17 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         return {"error": f"Failed to open futures position. ({str(e)})", "code": 400}
 
     try:
+        sleep(0.1)
+
+        last_price = float(client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])['avgPrice'])
+        price_precision = len(str(last_price).split('.')[-1])
+        if side == SIDE_BUY:
+            tp = round(last_price * (1 + tp / 100), price_precision)
+            sl = round(last_price * (1 - sl / 100), price_precision)
+        else:
+            tp = round(last_price * (1 - tp / 100), price_precision)
+            sl = round(last_price * (1 + sl / 100), price_precision)
+
         side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
         tp_order = client.futures_create_order(
             symbol=symbol,

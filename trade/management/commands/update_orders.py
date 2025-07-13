@@ -7,10 +7,10 @@ import asyncio
 from decouple import config
 from django.utils import timezone
 import logging
-from trade.utils import send_bot_message
+from trade.utils import send_bot_message, send_health_check_message
+import time
 
 logger = logging.getLogger(__name__)
-
 
 api_key = config('BINANCE_API_KEY')
 secret_key = config('BINANCE_SECRET_KEY')
@@ -36,7 +36,7 @@ class Command(BaseCommand):
         @sync_to_async
         def update_order(symbol, order_id):
             try:
-                asset = Asset.objects.get(symbol=symbol.upper(), enable=True)
+                asset = Asset.objects.get(symbol=symbol.upper())
                 open_positions = list(Position.objects.filter(asset=asset, status='OPEN'))
 
                 for position in open_positions:
@@ -95,14 +95,30 @@ class Command(BaseCommand):
                     send_bot_message(msg)
                 logger.error(f"Error closing position {order_id}: ({e}) for {symbol}")
 
-        def handle_socket_message(msg):
-            asyncio.run_coroutine_threadsafe(process_msg(msg), loop)
 
+        def start_ws():
+            while True:
+                try:
+                    logger.info("Starting Binance WebSocket connection...")
+                    send_health_check_message("🔄 Starting WebSocket connection to update orders...")
+                    twm = ThreadedWebsocketManager(api_key=api_key, api_secret=secret_key)
+                    twm.start()
+                    twm.start_futures_user_socket(callback=process_msg)
 
-        twm = ThreadedWebsocketManager(api_key=api_key, api_secret=secret_key)
-        twm.start()
-        twm.start_futures_user_socket(callback=process_msg)
+                    logger.info("WebSocket started successfully.")
+                    send_health_check_message("✅ WebSocket connected successfully. Listening for order updates...")
 
-        self.stdout.write(self.style.SUCCESS("WebSocket running... Press Ctrl+C to stop."))
-        twm.join()
+                    twm.join()  # Block here
+
+                except Exception as e:
+                    logger.error(f"WebSocket crashed or failed: {e}")
+                    send_health_check_message(f"⚠️ WebSocket crashed: {e}. Reconnecting in 5 seconds...")
+                    
+                finally:
+                    twm.stop()
+                    logger.info("WebSocket stopped. Restarting...")
+                    sleep(5)  # Wait before restarting
+
+        start_ws()
+
        
