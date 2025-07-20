@@ -166,7 +166,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'balance-report': {
         'task': 'trade.tasks.balance_report',
-        'schedule': crontab(minute=0, hour='*/6'),  # Every 6 hours
+        'schedule': crontab(minute=0, hour='*/3'),  # Every 3 hours
     },
     'save-balance-record': {
         'task': 'trade.tasks.save_balance_record',

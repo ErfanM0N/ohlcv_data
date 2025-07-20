@@ -235,7 +235,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         return {"error": f"Failed to open futures position. ({str(e)})", "code": 400}
 
     try:
-        sleep(0.1)
+        sleep(0.2)
 
         last_price = float(client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])['avgPrice'])
         price_precision = len(str(last_price).split('.')[-1])
@@ -275,7 +275,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         }, "code": 200}
 
     except Exception as e:
-        logger.exception(f"Error placing futures orders: {e}, symbol: {symbol}")
+        logger.exception(f"Error placing futures orders: {e}, symbol: {symbol}, order: {order}")
         return {"data": {
             "order": order,
             "tp_order": tp_order,

@@ -3,7 +3,7 @@ import logging
 from .utils import get_positions, futures_order, get_balance, cancel_orders, save_orders, get_history, open_position, get_position_history, get_open_positions
 import json
 from django.views.decorators.csrf import csrf_exempt
-from trade.models import Position, OneWayPosition
+from trade.models import Position, OneWayPosition, BalanceRecord
 from datetime import datetime
 from asset.models import Asset
 
@@ -164,3 +164,44 @@ def get_open_positions_view(request):
     if 'error' in positions:
         return JsonResponse({'error': positions['error'], 'data': {}}, status=positions.get('code', 500))
     return JsonResponse({'data': positions.get('data', [])}, status=200)
+
+
+def get_balance_history_view(request):
+    """
+    Handles HTTP GET requests to retrieve a list of balance history records, optionally filtered by a start timestamp.
+
+    Args:
+        request (HttpRequest): The HTTP request object, which may include a 'start' query parameter representing a Unix timestamp.
+
+    Returns:
+        JsonResponse: A JSON response containing a list of balance history records, each with the following fields:
+            - total_balance: The total balance at the record's timestamp.
+            - trade_pocket_balance: The trade pocket balance at the record's timestamp.
+            - unrealized_pnl: The unrealized profit and loss at the record's timestamp.
+            - unrealized_trade_balance: The unrealized trade balance at the record's timestamp.
+            - timestamp: The ISO-formatted timestamp of the record.
+
+    Notes:
+        - If the 'start' query parameter is provided and valid, only records with a timestamp greater than or equal to 'start' are returned.
+        - If 'start' is invalid or not provided, all records are returned.
+        - The records are ordered by timestamp in descending order.
+    """
+    balance_history = BalanceRecord.objects.all().order_by('-timestamp')
+    start = request.GET.get('start')
+    if start:
+        try:
+            start_dt = datetime.fromtimestamp(float(start))
+            balance_history = balance_history.filter(timestamp__gte=start_dt)
+        except Exception:
+            pass
+    data = [
+        {
+            'total_balance': record.total_balance,
+            'trade_pocket_balance': record.trade_pocket_balance,
+            'unrealized_pnl': record.unrealized_pnl,
+            'unrealized_trade_balance': record.unrealized_trade_balance,
+            'timestamp': record.timestamp.isoformat()
+        }
+        for record in balance_history
+    ]
+    return JsonResponse({'data': data}, status=200)
