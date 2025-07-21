@@ -172,6 +172,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'trade.tasks.save_balance_record',
         'schedule': crontab(minute='*/30'),  # Every 30 minutes
     },
+    'update-order-commission': {
+        'task': 'trade.tasks.update_order_commission',
+        'schedule': crontab(minute=0, hour='*/3'),  # Every 3 hours
+    },
 }
 
 LOGGING = {

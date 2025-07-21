@@ -7,6 +7,7 @@ from trade.models import Position, Order, OneWayPosition
 import requests
 import json 
 from time import sleep
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,29 @@ def get_open_positions():
     except Exception as e:
         logger.exception(f"Error fetching open position: {e}")
         return {"error": f"Failed to fetch open position. ({str(e)})", "code": 500}
+
+def get_position_history_from_binance():
+    """
+    Retrieves the position history from Binance.
+    """
+    try:
+        positions_raw = client.futures_account_trades()
+
+        positions = [
+            {
+                "symbol": p["symbol"],
+                "orderId": str(p["orderId"]),
+                "qty": p["qty"],
+                "commission": p["commission"],
+                "time": p["time"]
+            }
+            for p in positions_raw
+        ]
+        return {"data": positions, "code": 200}
+
+    except Exception as e:
+        logger.exception(f"Error fetching position history: {e}")
+        return {"error": f"Failed to fetch position history. ({str(e)})", "code": 500, "data": []}
 
 
 def get_position_history(start_time=None, symbol=None):

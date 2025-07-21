@@ -31,10 +31,11 @@ class Command(BaseCommand):
                 status = order['X']
                 logger.info(f"{order_id} for {symbol} status: {status}")
                 if status == 'FILLED':
-                    await update_order(symbol, order_id)
+                    price = float(order['L'])
+                    await update_order(symbol, order_id, price)
 
         @sync_to_async
-        def update_order(symbol, order_id):
+        def update_order(symbol, order_id, price):
             try:
                 asset = Asset.objects.get(symbol=symbol.upper())
                 open_positions = list(Position.objects.filter(asset=asset, status='OPEN'))
@@ -47,17 +48,18 @@ class Command(BaseCommand):
 
                             # Update order status
                             order.status = 'FILLED'
-                            order.save(update_fields=['status'])
+                            order.price = price
+                            order.save(update_fields=['status', 'price'])
 
                             # Update position status and PnL
                             position.status = 'CLOSED'
-                            position.exit_price = order.price
+                            position.exit_price = price
                             position.exit_time = timezone.now()
 
                             if position.side == 'BUY':
-                                position.pnl = (order.price - position.entry_price) * position.quantity
+                                position.pnl = (price - position.entry_price) * position.quantity
                             else:
-                                position.pnl = (position.entry_price - order.price) * position.quantity
+                                position.pnl = (position.entry_price - price) * position.quantity
                             position.save(update_fields=['status', 'exit_price', 'exit_time', 'pnl'])
                             logger.info(f"Closed position for {asset.symbol}, order {position.order_id}")
                             msg = f"💵Position {position.order_id} for {position.asset.symbol} closed\n💰💰with PnL: {round(position.pnl, 5)}\n" + msg
@@ -69,7 +71,8 @@ class Command(BaseCommand):
                                 reverse_order = position.orders.filter(order_type='TP').first()
                             
                             reverse_order.status = 'CANCELED'
-                            reverse_order.save(update_fields=['status'])
+                            reverse_order.commission = 0
+                            reverse_order.save(update_fields=['status', 'commission'])
                             client.futures_cancel_order(symbol=symbol, orderId=reverse_order.order_id)
                             msg += f"Reverse order {reverse_order.order_id} canceled.\n\n"
                             msg += f"✅Position closed successfully."

@@ -20,6 +20,9 @@ class Position(models.Model):
     trading_model = models.CharField(max_length=50, null=True, blank=True)
     telegram_message_id = models.IntegerField(null=True, blank=True)
     probability = models.FloatField(default=-1)
+    commission = models.FloatField(default=-1)
+    # belong to order which open position
+    order_commission = models.FloatField(default=-1)
 
     def __str__(self):
         return f"{self.asset.symbol} - {self.side} - {self.quantity} @ {self.order_id}"
@@ -50,6 +53,7 @@ class Order(models.Model):
     price = models.FloatField()
     order_id = models.CharField(max_length=32, unique=True)
     status = models.CharField(max_length=8, choices=STATUSS, default='PENDING')
+    commission = models.FloatField(default=-1)
 
     def __str__(self):
         return f"{self.order_id}"
