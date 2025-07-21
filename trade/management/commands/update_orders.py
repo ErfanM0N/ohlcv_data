@@ -120,7 +120,7 @@ class Command(BaseCommand):
                 finally:
                     twm.stop()
                     logger.info("WebSocket stopped. Restarting...")
-                    sleep(5)  # Wait before restarting
+                    time.sleep(5)  # Wait before restarting
 
         start_ws()
 
