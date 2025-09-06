@@ -24,8 +24,8 @@ This is a complete and fully functional Django application that serves as an aut
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/your-repo-name.git
-    cd your-repo-name
+    git clone https://github.com/ErfanM0N/ohlcv_data
+    cd ohlcv_data
     ```
 2.  **Set up your environment:**
     Create a virtual environment and install the required dependencies:
