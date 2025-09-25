@@ -27,7 +27,8 @@ class Command(BaseCommand):
             if msg['e'] == 'ORDER_TRADE_UPDATE':
                 order = msg['o']
                 order_id = order['i']
-                symbol = order['s']
+                usdc_symbol = order['s']
+                symbol = usdc_symbol.replace('USDC', 'USDT')
                 status = order['X']
                 logger.info(f"{order_id} for {symbol} status: {status}")
                 if status == 'FILLED':
@@ -73,7 +74,8 @@ class Command(BaseCommand):
                             reverse_order.status = 'CANCELED'
                             reverse_order.commission = 0
                             reverse_order.save(update_fields=['status', 'commission'])
-                            client.futures_cancel_order(symbol=symbol, orderId=reverse_order.order_id)
+                            usdc_symbol = symbol.replace('USDT', 'USDC')
+                            client.futures_cancel_order(symbol=usdc_symbol, orderId=reverse_order.order_id)
                             msg += f"Reverse order {reverse_order.order_id} canceled.\n\n"
                             msg += f"✅Position closed successfully."
                             logger.info(f"Canceled reverse order {reverse_order.order_id} for {asset.symbol}")
@@ -102,7 +104,7 @@ class Command(BaseCommand):
         def start_ws():
             while True:
                 try:
-                    logger.info("Starting Binance WebSocket connection...")
+                    logger.info("Starting Binance WebSocket connection..")
                     send_health_check_message("🔄 Starting WebSocket connection to update orders...")
                     twm = ThreadedWebsocketManager(api_key=api_key, api_secret=secret_key)
                     twm.start()
@@ -116,6 +118,7 @@ class Command(BaseCommand):
                 except Exception as e:
                     logger.error(f"WebSocket crashed or failed: {e}")
                     send_health_check_message(f"⚠️ WebSocket crashed: {e}. Reconnecting in 5 seconds...")
+                    time.sleep(5)
                     
                 finally:
                     twm.stop()

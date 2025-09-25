@@ -160,6 +160,7 @@ def get_open_positions():
         logger.exception(f"Error fetching open position: {e}")
         return {"error": f"Failed to fetch open position. ({str(e)})", "code": 500}
 
+
 def get_position_history_from_binance():
     """
     Retrieves the position history from Binance.
@@ -224,6 +225,8 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
     side = SIDE_BUY if side.lower() == 'buy' else SIDE_SELL
     position_side = 'LONG' if side.lower() == 'buy' else 'SHORT'
 
+    usdc_symbol = symbol.replace('USDT', 'USDC')
+
     asset = Asset.objects.filter(symbol=symbol, enable=True).first()
     if asset is None:
         logger.error(f"Asset {symbol} not found.")
@@ -233,7 +236,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
     try:
         if asset.leverage != leverage:
             logger.info(f"Changing leverage for {symbol} from {asset.leverage} to {leverage}.")
-            client.futures_change_leverage(symbol=symbol, leverage=leverage)
+            client.futures_change_leverage(symbol=usdc_symbol, leverage=leverage)
             asset.leverage = leverage
             asset.save()
     except Exception as e:
@@ -243,7 +246,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
     
     try:
         order_params = {
-            'symbol': symbol,
+            'symbol': usdc_symbol,
             'side': side,
             'positionSide': position_side,
             'type': order_type,
@@ -262,7 +265,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         sleep(0.2)
 
         last_price = float(client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])['avgPrice'])
-        price_precision = len(str(last_price).split('.')[-1])
+        price_precision = 2
         if side == SIDE_BUY:
             tp = round(last_price * (1 + tp / 100), price_precision)
             sl = round(last_price * (1 - sl / 100), price_precision)
@@ -272,7 +275,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
 
         side = SIDE_SELL if side.lower() == 'buy' else SIDE_BUY
         tp_order = client.futures_create_order(
-            symbol=symbol,
+            symbol=usdc_symbol,
             side=side,
             positionSide=position_side, 
             type="TAKE_PROFIT_MARKET",
@@ -282,7 +285,7 @@ def futures_order(symbol, quantity, side, tp, sl, leverage=1, order_type=ORDER_T
         )
         
         sl_order = client.futures_create_order(
-            symbol=symbol,
+            symbol=usdc_symbol,
             side=side,
             positionSide=position_side,
             type="STOP_MARKET",
@@ -314,10 +317,10 @@ def cancel_orders(order, tp_order, sl_order, symbol):
             side = SIDE_SELL if order['side'].lower() == 'buy' else SIDE_BUY
             position_side = order['positionSide']
             quantity = float(order['origQty'])
-            symbol = order['symbol']
+            usdc_symbol = order['symbol']
 
             client.futures_create_order(
-                symbol=symbol,
+                symbol=usdc_symbol,
                 side=side,
                 type='MARKET',
                 quantity=quantity,
@@ -327,11 +330,11 @@ def cancel_orders(order, tp_order, sl_order, symbol):
             msg += f"Closed position because of failed TP/SL Orders: {order['orderId']}, symbol: {symbol}\n"
         if tp_order:
             client.futures_cancel_order(symbol=tp_order['symbol'], orderId=tp_order['orderId'])
-            logger.info(f"Cancelled TP order: {tp_order['orderId']}, symbol: {tp_order['symbol']}")
-            msg += f"Cancelled TP order: {tp_order['orderId']}, symbol: {tp_order['symbol']}\n"
+            logger.info(f"Cancelled TP order: {tp_order['orderId']}, symbol: {symbol}")
+            msg += f"Cancelled TP order: {tp_order['orderId']}, symbol: {symbol}\n"
         if sl_order:
             client.futures_cancel_order(symbol=sl_order['symbol'], orderId=sl_order['orderId'])
-            logger.info(f"Cancelled SL order: {sl_order['orderId']}, symbol: {sl_order['symbol']}")
+            logger.info(f"Cancelled SL order: {sl_order['orderId']}, symbol: {symbol}")
 
         send_bot_message(msg + "✅Orders cancelled successfully.")
 
@@ -341,10 +344,12 @@ def cancel_orders(order, tp_order, sl_order, symbol):
 
 
 def save_orders(order, tp_order, sl_order, leverage=1, trading_model=None, probability=-1):
-    msg = f"Position opened: {order['orderId']} for {order['symbol']} at {order['avgPrice']} with leverage {leverage}\n"
+    symbol = order['symbol'].replace('USDC', 'USDT')
+    msg = f"Position opened: {order['orderId']} for {symbol} at {order['avgPrice']} with leverage {leverage}\n"
     order = client.futures_get_order(symbol=order['symbol'], orderId=order['orderId'])
+   
     position = Position.objects.create(
-        asset=Asset.objects.get(symbol=order['symbol']),
+        asset=Asset.objects.get(symbol=symbol),
         side='BUY' if order['side'] == SIDE_BUY else 'SELL',
         quantity=float(order['origQty']),
         order_id=order['orderId'],
@@ -354,7 +359,7 @@ def save_orders(order, tp_order, sl_order, leverage=1, trading_model=None, proba
         trading_model=trading_model,
         probability=probability
     )
-    msg = f"❗️New Position:\n {order['symbol']} \n{order['orderId']} \n{order['side']}\n at {order['avgPrice']} \nquantity: {order['origQty']}\n\n"
+    msg = f"❗️New Position:\n {symbol} \n{order['orderId']} \n{order['side']}\n at {order['avgPrice']} \nquantity: {order['origQty']}\nwith probability: {probability:.4f}\n\n"
     logger.info(f"Saved position: {position.order_id} for {position.asset.symbol} at {position.entry_price}")
 
     Order.objects.create(
@@ -402,7 +407,7 @@ def get_history():
     try:
         positions = list(Position.objects.filter(status='CLOSED').values(
             'id', 'asset__symbol', 'side', 'quantity', 'order_id', 
-            'entry_price', 'entry_time', 'leverage', 'exit_price', 'exit_time', 'pnl'
+            'entry_price', 'entry_time', 'leverage', 'exit_price', 'exit_time', 'pnl', 'probability'
         ))
 
         for p in positions:
@@ -417,7 +422,7 @@ def get_history():
 def get_balance():
     try:
         balances = client.futures_account_balance()
-        balance = next((item for item in balances if item['asset'] == 'USDT'), None)
+        balance = next((item for item in balances if item['asset'] == 'USDC'), None)
         
         if balance is None:
             logger.error("USDT balance not found in futures account.")
@@ -439,7 +444,7 @@ def get_spot_balance():
     try:
         account_info = client.get_account()
         balances = account_info['balances']
-        usdt_balance = next((item for item in balances if item['asset'] == 'USDT'), None)
+        usdt_balance = next((item for item in balances if item['asset'] == 'USDC'), None)
         
         if usdt_balance is None:
             logger.error("USDT balance not found in spot account.")
@@ -455,3 +460,17 @@ def get_spot_balance():
     except Exception as e:
         logger.exception(f"Error fetching spot account balance: {e}")
         return {"error": f"Failed to fetch spot account balance. ({str(e)})", "code": 500}
+
+
+def get_orders():
+    open_orders = client.futures_get_open_orders(symbol="LTCUSDT")
+    print(open_orders)
+
+
+def cancel_orders():
+    symbol = "LTCUSDT"
+    try:
+        result = client.futures_cancel_all_open_orders(symbol=symbol)
+        print("Cancelled Orders:", result)
+    except Exception as e:
+        print("Error:", e)
