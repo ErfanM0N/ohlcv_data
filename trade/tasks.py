@@ -1,7 +1,11 @@
 from celery import shared_task
-from trade.utils import send_bot_message, get_balance, get_spot_balance, get_position_history_from_binance
+from trade.utils import send_bot_message, get_balance, get_spot_balance, get_position_history_from_binance, create_daily_balance_chart, send_bot_photo, create_weekly_balance_chart
 from trade.models import Position, Order
 import logging
+from django.utils import timezone
+from datetime import datetime, timedelta
+from .models import BalanceRecord
+
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +53,7 @@ def save_balance_record():
         logger.error(f"Error saving balance record: {e}")
         print(f"Error saving balance record: {e}")
 
+
 @shared_task
 def update_order_commission():
     """
@@ -95,3 +100,139 @@ def update_order_commission():
             position.commission = -0.1
         position.save()
         logger.info(f"Updated commission for position {position.order_id} to {position.commission}")
+
+
+def format_change(change):
+    """Format balance change with appropriate emoji and formatting"""
+    if change > 0:
+        return f"+${abs(change):,.2f}"
+    elif change < 0:
+        return f"-${abs(change):,.2f}"
+    else:
+        return f"${change:,.2f}"
+    
+
+@shared_task
+def send_daily_balance_report():
+    """
+    Send daily unrealized trade balance report via Telegram at midnight.
+    Shows changes from the previous midnight to current midnight.
+    """
+    try:
+
+        now = timezone.now()
+        today_midnight = now
+        yesterday_midnight = today_midnight - timedelta(days=1, minutes=30)
+        
+        records = BalanceRecord.objects.filter(
+            timestamp__gte=yesterday_midnight,
+            timestamp__lte=today_midnight
+        ).order_by('timestamp')
+        
+        if not records.exists():
+            message = "📊 Daily Unrealized Trade Balance Report\n\n"
+            message += "❌ No data available for the past 24 hours."
+            send_bot_message(message)
+            return
+        
+        first_record = records.first()
+        last_record = records.last()
+        
+        
+        unrealized_trade_change = last_record.unrealized_trade_balance - first_record.unrealized_trade_balance
+        
+        message = "📊 Daily Change Balance Report\n\n"
+        
+        message += f"💰 Current: ${last_record.unrealized_trade_balance:,.2f}\n"
+        change_percent = (unrealized_trade_change / first_record.unrealized_trade_balance) * 100 if first_record.unrealized_trade_balance != 0 else 0
+
+        if unrealized_trade_change > 0:
+            trend_emoji = "📈"
+        elif unrealized_trade_change < 0:
+            trend_emoji = "📉"
+        else:   
+            trend_emoji = "➡️"
+
+        message += f"{trend_emoji} 24h Change: {format_change(unrealized_trade_change)} ({change_percent:+.2f}%)\n\n"
+
+
+        chart_buffer = create_daily_balance_chart(records, yesterday_midnight, now)
+        if chart_buffer:
+
+            send_bot_photo(chart_buffer, caption=message)
+            logger.info(f"Daily unrealized trade balance report with chart sent successfully at {now}")
+        else:
+
+            send_bot_message(message)
+            logger.warning(f"Chart creation failed, sent text-only report at {now}")
+
+    except Exception as e:
+        error_message = f"❌ Error generating daily report: {str(e)}"
+        logger.error(error_message)
+        try:
+            send_bot_message(error_message)
+        except:
+            pass
+
+
+@shared_task
+def send_weekly_balance_report():
+    """
+    Send weekly unrealized trade balance report via Telegram at midnight.
+    Shows changes from the previous midnight to current midnight.
+    """
+    try:
+
+        now = timezone.now()
+        today_midnight = now
+        last_week_midnight = today_midnight - timedelta(days=7, minutes=30)
+
+        records = BalanceRecord.objects.filter(
+            timestamp__gte=last_week_midnight,
+            timestamp__lte=today_midnight
+        ).order_by('timestamp')
+        
+        if not records.exists():
+            message = "📊 Weekly Unrealized Trade Balance Report\n\n"
+            message += "❌ No data available for the past week."
+            send_bot_message(message)
+            return
+        
+        first_record = records.first()
+        last_record = records.last()
+        
+        
+        unrealized_trade_change = last_record.unrealized_trade_balance - first_record.unrealized_trade_balance
+        
+        message = "📊 Weekly Change Balance Report\n\n"
+        
+        message += f"💰 Current: ${last_record.unrealized_trade_balance:,.2f}\n"
+        change_percent = (unrealized_trade_change / first_record.unrealized_trade_balance) * 100 if first_record.unrealized_trade_balance != 0 else 0
+
+        if unrealized_trade_change > 0:
+            trend_emoji = "📈"
+        elif unrealized_trade_change < 0:
+            trend_emoji = "📉"
+        else:   
+            trend_emoji = "➡️"
+
+        message += f"{trend_emoji} 7d Change: {format_change(unrealized_trade_change)} ({change_percent:+.2f}%)\n\n"
+
+
+        chart_buffer = create_weekly_balance_chart(records, last_week_midnight, now)
+        if chart_buffer:
+
+            send_bot_photo(chart_buffer, caption=message)
+            logger.info(f"Weekly unrealized trade balance report with chart sent successfully at {now}")
+        else:
+
+            send_bot_message(message)
+            logger.warning(f"Chart creation failed, sent text-only report at {now}")
+
+    except Exception as e:
+        error_message = f"❌ Error generating daily report: {str(e)}"
+        logger.error(error_message)
+        try:
+            send_bot_message(error_message)
+        except:
+            pass

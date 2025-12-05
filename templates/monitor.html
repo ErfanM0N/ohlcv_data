@@ -1,0 +1,537 @@
+<!-- templates/balance_history.html -->
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balance History</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 2em;
+        }
+        
+        .date-picker-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            display: flex;
+            gap: 20px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+        
+        .date-input-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .date-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        .date-input-group input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .date-input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .filter-button {
+            padding: 10px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .filter-button:hover {
+            background: #5568d3;
+        }
+        
+        .filter-button:active {
+            transform: scale(0.98);
+        }
+        
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        
+        .trade-stats-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .section-title {
+            color: #333;
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .trade-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .trade-stat-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            padding: 20px;
+            border-radius: 8px;
+            color: white;
+        }
+        
+        .trade-stat-card.negative {
+            background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Balance History</h1>
+        
+        <div class="date-picker-container">
+            <div class="date-input-group">
+                <label for="start-date">Start Date</label>
+                <input type="date" id="start-date" value="{{ default_start_date }}">
+            </div>
+            
+            <div class="date-input-group">
+                <label for="end-date">End Date</label>
+                <input type="date" id="end-date" value="{{ default_end_date }}">
+            </div>
+            
+            <button class="filter-button" onclick="filterData()">Update Chart</button>
+        </div>
+        
+        <div class="stats-container" id="stats-container">
+            <!-- Stats will be populated by JavaScript -->
+        </div>
+        
+        <div class="chart-container">
+            <canvas id="pnlChart"></canvas>
+        </div>
+        
+        <div id="no-data" class="no-data" style="display: none;">
+            No data available for the selected date range
+        </div>
+        
+        <div class="trade-stats-section">
+            <h2 class="section-title">Trade Statistics</h2>
+            <div class="trade-stats-grid" id="trade-stats-grid">
+                <!-- Trade stats will be populated by JavaScript -->
+            </div>
+            <div id="no-trade-data" class="no-data" style="display: none;">
+                No closed trades in the selected date range
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Store all records from Django
+        const allRecords = {{ records_json|safe }};
+        const allTrades = {{ trades_json|safe }};
+        let chart = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            filterData();
+        });
+        
+        function filterData() {
+            const startDate = new Date(document.getElementById('start-date').value);
+            const endDate = new Date(document.getElementById('end-date').value);
+            endDate.setHours(23, 59, 59, 999); // Include entire end day
+            
+            // Filter records based on date range
+            const filteredRecords = allRecords.filter(record => {
+                const recordDate = new Date(record.timestamp);
+                return recordDate >= startDate && recordDate <= endDate;
+            });
+            
+            // Sort by timestamp (oldest first for chart)
+            filteredRecords.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            if (filteredRecords.length === 0) {
+                document.getElementById('no-data').style.display = 'block';
+                document.getElementById('stats-container').style.display = 'none';
+                if (chart) {
+                    chart.destroy();
+                    chart = null;
+                }
+                return;
+            }
+            
+            document.getElementById('no-data').style.display = 'none';
+            document.getElementById('stats-container').style.display = 'grid';
+            
+            // Update statistics
+            updateStats(filteredRecords);
+            
+            // Update chart
+            updateChart(filteredRecords);
+            
+            // Update trade statistics
+            updateTradeStats();
+        }
+        
+        function updateStats(records) {
+            const latest = records[records.length - 1];
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-label">Total Records</div>
+                    <div class="stat-value">${records.length}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current Unrealized PNL</div>
+                    <div class="stat-value">$${latest.unrealized_pnl.toFixed(2)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Balance</div>
+                    <div class="stat-value">$${latest.total_balance.toFixed(2)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Trade Pocket</div>
+                    <div class="stat-value">$${latest.trade_pocket_balance.toFixed(2)}</div>
+                </div>
+            `;
+            document.getElementById('stats-container').innerHTML = statsHtml;
+        }
+        
+        function updateChart(records) {
+            const ctx = document.getElementById('pnlChart').getContext('2d');
+            
+            // Check for duplicate dates
+            const dateMap = {};
+            records.forEach(r => {
+                const date = new Date(r.timestamp);
+                const dateKey = date.toLocaleDateString();
+                dateMap[dateKey] = (dateMap[dateKey] || 0) + 1;
+            });
+            const hasDuplicateDates = Object.values(dateMap).some(count => count > 1);
+
+            // Prepare labels based on whether dates are duplicate
+            const labels = records.map(r => {
+                const date = new Date(r.timestamp);
+                const month = date.toLocaleDateString('en-US', { month: 'short' });
+                const day = date.getDate();
+                
+                if (hasDuplicateDates) {
+                    const hours = date.getHours().toString().padStart(2, '0');
+                    const minutes = date.getMinutes().toString().padStart(2, '0');
+                    return `${month} ${day}, ${hours}:${minutes}`;
+                } else {
+                    return `${month} ${day}`;
+                }
+            });
+
+            // Store full timestamps for tooltip
+            const fullTimestamps = records.map(r => {
+                const date = new Date(r.timestamp);
+                return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            });
+            
+            const pnlData = records.map(r => r.unrealized_trade_balance);
+            
+            // Destroy existing chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+            
+            // Create new chart
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Unrealized Trade Balance',
+                        data: pnlData,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#667eea',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                title: function(context) {
+                                    return fullTimestamps[context[0].dataIndex];
+                                },
+                                label: function(context) {
+                                    return 'PNL: $' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toFixed(2);
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 0,
+                                minRotation: 0,
+                                maxTicksLimit: 10,
+                                autoSkip: true,
+                                autoSkipPadding: 20
+                            }
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+        
+        function updateTradeStats() {
+            const startDate = new Date(document.getElementById('start-date').value);
+            const endDate = new Date(document.getElementById('end-date').value);
+            endDate.setHours(23, 59, 59, 999);
+            
+            // Filter trades: entry_time after start and exit_time before end
+            const filteredTrades = allTrades.filter(trade => {
+                const entryTime = new Date(trade.entry_time);
+                const exitTime = new Date(trade.exit_time);
+                return entryTime >= startDate && exitTime <= endDate;
+            });
+            
+            if (filteredTrades.length === 0) {
+                document.getElementById('no-trade-data').style.display = 'block';
+                document.getElementById('trade-stats-grid').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('no-trade-data').style.display = 'none';
+            document.getElementById('trade-stats-grid').style.display = 'grid';
+            
+            // Calculate statistics
+            const buyTrades = filteredTrades.filter(t => t.side === 'BUY');
+            const sellTrades = filteredTrades.filter(t => t.side === 'SELL');
+            const totalPnl = filteredTrades.reduce((sum, t) => sum + t.pnl, 0);
+            
+            const winningTrades = filteredTrades.filter(t => t.pnl > 0);
+            const losingTrades = filteredTrades.filter(t => t.pnl < 0);
+            
+            const winningBuyTrades = buyTrades.filter(t => t.pnl > 0);
+            const winningSellTrades = sellTrades.filter(t => t.pnl > 0);
+            
+            const winRate = filteredTrades.length > 0 
+                ? (winningTrades.length / filteredTrades.length * 100).toFixed(2) 
+                : 0;
+            
+            const buyWinRate = buyTrades.length > 0 
+                ? (winningBuyTrades.length / buyTrades.length * 100).toFixed(2) 
+                : 0;
+            
+            const sellWinRate = sellTrades.length > 0 
+                ? (winningSellTrades.length / sellTrades.length * 100).toFixed(2) 
+                : 0;
+            
+            const totalCommission = filteredTrades.reduce((sum, t) => {
+                return sum + (0.0008 * t.quantity * t.entry_price);
+            }, 0);
+            
+            const avgWin = winningTrades.length > 0 
+                ? winningTrades.reduce((sum, t) => sum + t.pnl, 0) / winningTrades.length 
+                : 0;
+            
+            const avgLoss = losingTrades.length > 0 
+                ? Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0) / losingTrades.length)
+                : 0;
+            
+            const avgTPPercent = winningTrades.length > 0
+                ? (winningTrades.reduce((sum, t) => {
+                    const percent = t.side === 'BUY' 
+                        ? (t.exit_price / t.entry_price - 1)
+                        : (t.entry_price / t.exit_price - 1);
+                    return sum + percent;
+                }, 0) / winningTrades.length * 100).toFixed(2)
+                : 0;
+            
+            const avgSLPercent = losingTrades.length > 0
+                ? Math.abs((losingTrades.reduce((sum, t) => {
+                    const percent = t.side === 'BUY' 
+                        ? (t.exit_price / t.entry_price - 1)
+                        : (t.entry_price / t.exit_price - 1);
+                    return sum + percent;
+                }, 0) / losingTrades.length * 100)).toFixed(2)
+                : 0;
+            
+            const riskReward = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : 'N/A';
+            
+            const statsHtml = `
+                <div class="trade-stat-card">
+                    <div class="stat-label">Total Trades</div>
+                    <div class="stat-value">${filteredTrades.length}</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Buy Trades</div>
+                    <div class="stat-value">${buyTrades.length}</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Sell Trades</div>
+                    <div class="stat-value">${sellTrades.length}</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Winning Trades</div>
+                    <div class="stat-value">${winningTrades.length}</div>
+                </div>
+                <div class="trade-stat-card negative">
+                    <div class="stat-label">Losing Trades</div>
+                    <div class="stat-value">${losingTrades.length}</div>
+                </div>
+                <div class="trade-stat-card ${totalPnl < 0 ? 'negative' : ''}">
+                    <div class="stat-label">Total PNL</div>
+                    <div class="stat-value">$${totalPnl.toFixed(2)}</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Win Rate</div>
+                    <div class="stat-value">${winRate}%</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Buy Win Rate</div>
+                    <div class="stat-value">${buyWinRate}%</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Sell Win Rate</div>
+                    <div class="stat-value">${sellWinRate}%</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Avg Win</div>
+                    <div class="stat-value">${avgWin.toFixed(2)}</div>
+                </div>
+                <div class="trade-stat-card ${avgLoss > 0 ? 'negative' : ''}">
+                    <div class="stat-label">Avg Loss</div>
+                    <div class="stat-value">${avgLoss.toFixed(2)}</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">Avg TP %</div>
+                    <div class="stat-value">${avgTPPercent}%</div>
+                </div>
+                <div class="trade-stat-card ${avgSLPercent > 0 ? 'negative' : ''}">
+                    <div class="stat-label">Avg SL %</div>
+                    <div class="stat-value">${avgSLPercent}%</div>
+                </div>
+                <div class="trade-stat-card">
+                    <div class="stat-label">R/R Ratio</div>
+                    <div class="stat-value">${riskReward}</div>
+                </div>
+                <div class="trade-stat-card negative">
+                    <div class="stat-label">Total Commission</div>
+                    <div class="stat-value">$${totalCommission.toFixed(2)}</div>
+                </div>
+            `;
+            
+            document.getElementById('trade-stats-grid').innerHTML = statsHtml;
+        }
+    </script>
+</body>
+</html>

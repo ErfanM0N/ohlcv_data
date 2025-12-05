@@ -39,10 +39,12 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'asset',
     'ohlc',
     'django_celery_beat',
-    'trade'
+    'trade',
+    'news'
 ]
 
 MIDDLEWARE = [
@@ -176,6 +178,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'trade.tasks.update_order_commission',
         'schedule': crontab(minute=0, hour='*/3'),  # Every 3 hours
     },
+    'daily-balance-chart': {
+        'task': 'trade.tasks.send_daily_balance_report',
+        'schedule': crontab(minute=5, hour=0),  # Every day at 00:05
+    },
+    'weekly-balance-chart': {
+        'task': 'trade.tasks.send_weekly_balance_report',
+        'schedule': crontab(minute=10, hour=0, day_of_week='sat'),  # Every Saturday at 00:10
+    },  
 }
 
 LOGGING = {

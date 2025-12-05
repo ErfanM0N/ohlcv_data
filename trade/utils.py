@@ -3,11 +3,15 @@ from binance.client import Client
 from binance.enums import *
 from decouple import config
 from asset.models import Asset
-from trade.models import Position, Order, OneWayPosition
+from trade.models import BalanceRecord, Position, Order, OneWayPosition
 import requests
 import json 
 from time import sleep
 from datetime import datetime
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+from io import BytesIO
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,47 @@ def send_bot_message(text, reply_msg_id=None):
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error sending Telegram message: {e}")
+        return None
+
+
+def send_bot_photo(photo, caption=None, reply_msg_id=None):
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
+    
+    data = {
+        "chat_id": CHANNEL_ID,
+        "parse_mode": "HTML"  # Optional: allows HTML formatting in caption
+    }
+    
+    if caption:
+        data["caption"] = caption
+        
+    if reply_msg_id:
+        data["reply_to_message_id"] = reply_msg_id
+
+    try:
+        if isinstance(photo, str):
+            if photo.startswith('http'):
+         
+                data["photo"] = photo
+                response = requests.post(url, data=data)
+            else:
+                
+                with open(photo, 'rb') as photo_file:
+                    files = {"photo": photo_file}
+                    response = requests.post(url, data=data, files=files)
+        else:
+            files = {"photo": photo}
+            response = requests.post(url, data=data, files=files)
+            
+        response.raise_for_status()
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error sending Telegram photo: {e}")
+        return None
+    except FileNotFoundError as e:
+        logger.error(f"Photo file not found: {e}")
         return None
 
 
@@ -474,3 +519,165 @@ def cancel_orders():
         print("Cancelled Orders:", result)
     except Exception as e:
         print("Error:", e)
+
+
+def create_daily_balance_chart(records, start_time, end_time):
+    """
+    Create a line chart of unrealized trade balance over time
+    Returns BytesIO buffer containing the chart image
+    """
+    try:
+        timestamps = [record.timestamp for record in records]
+        balances = [record.unrealized_trade_balance for record in records]
+        
+        plt.style.use('dark_background')  # Dark theme for better Telegram appearance
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+
+        # --- SCALING MODIFICATION START ---
+        if balances:
+            min_balance = min(balances)
+            max_balance = max(balances)
+
+            if min_balance != max_balance:
+                # Calculate buffer based on 10% of the range
+                balance_range = max_balance - min_balance
+                total_buffer = balance_range * 0.10
+                
+                # To move the data visually towards the top,
+                bottom_buffer = total_buffer * 0.6 
+                top_buffer = total_buffer * 0.4    
+                
+                y_min = min_balance - bottom_buffer
+                y_max = max_balance + top_buffer
+                
+                # Apply the new y-axis limits to scale and position the plot
+                ax.set_ylim(y_min, y_max)
+            else:
+
+                buffer_size = 1.0 
+                ax.set_ylim(min_balance - buffer_size, max_balance + buffer_size)
+        # --- SCALING MODIFICATION END ---
+        
+        ax.plot(timestamps, balances, linewidth=2, color='#00ff41', markersize=3)
+        
+        ax.set_title('Unrealized Trade Balance - Last 24 Hours', 
+                    fontsize=16, fontweight='bold', color='white', pad=20)
+        ax.set_xlabel('Time', fontsize=12, color='white')
+        ax.set_ylabel('Balance ($)', fontsize=12, color='white')
+        
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+        
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=2))
+        
+        plt.xticks(rotation=45)
+        ax.grid(True, alpha=0.3, color='gray')
+        
+        fill_color = 'gray'
+        alpha = 0.1
+            
+        ax.fill_between(timestamps, balances, alpha=alpha, color=fill_color)
+        
+
+        plt.tight_layout()
+        
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight',
+                   facecolor='#0f1419', edgecolor='none')
+        img_buffer.seek(0)
+        
+        plt.close(fig)
+        
+        return img_buffer
+        
+    except Exception as e:
+        logger.error(f"Error creating balance chart: {e}")
+        return None
+
+
+def create_weekly_balance_chart(records, start_time, end_time):
+    """
+    Create a line chart of unrealized trade balance over time for a week,
+    showing only the day on the x-axis.
+    Returns BytesIO buffer containing the chart image
+    """
+    # NOTE: This assumes 'mdates' and 'BytesIO' are imported,
+    # and 'logger' is defined for error handling, and 'plt' is imported.
+
+    try:
+        timestamps = [record.timestamp for record in records]
+        balances = [record.unrealized_trade_balance for record in records]
+        
+        plt.style.use('dark_background')
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        # --- SCALING MODIFICATION (Keep as is) ---
+        if balances:
+            min_balance = min(balances)
+            max_balance = max(balances)
+
+            if min_balance != max_balance:
+                balance_range = max_balance - min_balance
+                total_buffer = balance_range * 0.10
+                bottom_buffer = total_buffer * 0.6 
+                top_buffer = total_buffer * 0.4    
+                y_min = min_balance - bottom_buffer
+                y_max = max_balance + top_buffer
+                ax.set_ylim(y_min, y_max)
+            else:
+                buffer_size = 1.0 
+                ax.set_ylim(min_balance - buffer_size, max_balance + buffer_size)
+        # --- SCALING MODIFICATION END ---
+        
+        ax.plot(timestamps, balances, linewidth=2, color='#00ff41', markersize=3)
+        
+        ax.set_title('Unrealized Trade Balance - Last 7 Days', 
+                     fontsize=16, fontweight='bold', color='white', pad=20)
+        ax.set_xlabel('Day', fontsize=12, color='white') # Updated x-label
+        ax.set_ylabel('Balance ($)', fontsize=12, color='white')
+        
+        # Y-axis formatter (Keep as is)
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+        
+        # 1. Update X-axis Formatter to only show the abbreviated Day of the week
+        # '%a' gives 'Mon', 'Tue', etc.
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%a')) 
+        
+        # 2. Update X-axis Locator for Ticks at the start of each Day
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=1)) 
+        
+        # Optional: Set a minor locator for better grid lines, e.g., every 6 hours
+        ax.xaxis.set_minor_locator(mdates.HourLocator(byhour=range(0, 24, 6)))
+        ax.grid(True, which='major', alpha=0.5, color='gray')
+        ax.grid(True, which='minor', alpha=0.1, color='gray') # Lighter grid lines for minor ticks
+
+        plt.xticks(rotation=0, ha='center') # Reduced rotation and centered labels for short day names
+        
+        fill_color = 'gray'
+        alpha = 0.1
+            
+        ax.fill_between(timestamps, balances, alpha=alpha, color=fill_color)
+        
+
+        plt.tight_layout()
+        
+        img_buffer = BytesIO()
+        plt.savefig(img_buffer, format='png', dpi=150, bbox_inches='tight',
+                    facecolor='#0f1419', edgecolor='none')
+        img_buffer.seek(0)
+        
+        plt.close(fig)
+        
+        return img_buffer
+        
+    except Exception as e:
+        logger.error(f"Error creating weekly balance chart: {e}") 
+        return None
+
+
+def get_balance_history_without_start():
+    records = list(BalanceRecord.objects.all().order_by('-timestamp'))
+    return records
+
+

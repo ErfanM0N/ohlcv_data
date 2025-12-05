@@ -4,8 +4,10 @@ from .utils import get_positions, futures_order, get_balance, cancel_orders, sav
 import json
 from django.views.decorators.csrf import csrf_exempt
 from trade.models import Position, OneWayPosition, BalanceRecord
-from datetime import datetime
+from datetime import datetime, timedelta
 from asset.models import Asset
+from django.shortcuts import render
+from django.core.serializers.json import DjangoJSONEncoder
 
 
 logger = logging.getLogger(__name__)
@@ -205,3 +207,61 @@ def get_balance_history_view(request):
         for record in balance_history
     ]
     return JsonResponse({'data': data}, status=200)
+
+
+
+
+def get_balance_history_without_start():
+    records = list(BalanceRecord.objects.all().order_by('-timestamp'))
+    return records
+
+
+def get_trade_history_without_start():
+    records = list(Position.objects.filter(status='CLOSED').order_by('-entry_time'))
+    return records
+
+
+def balance_history_view(request):
+    """View for displaying balance history with date filtering"""
+    records = get_balance_history_without_start()
+    
+    # Prepare data for JavaScript
+    records_data = [
+        {
+            'timestamp': record.timestamp.isoformat(),
+            'total_balance': record.total_balance,
+            'trade_pocket_balance': record.trade_pocket_balance,
+            'unrealized_pnl': record.unrealized_pnl,
+            'unrealized_trade_balance': record.unrealized_trade_balance,
+        }
+        for record in records
+    ]
+    
+    # Calculate default date range (last week)
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=7)
+    
+    context = {
+        'records_json': json.dumps(records_data),
+        'default_start_date': start_date.strftime('%Y-%m-%d'),
+        'default_end_date': end_date.strftime('%Y-%m-%d'),
+    }
+
+    trades = get_trade_history_without_start()
+    trades_json = json.dumps([{
+        'side': t.side,
+        'entry_time': t.entry_time.isoformat(),
+        'exit_time': t.exit_time.isoformat() if t.exit_time else None,
+        'pnl': float(t.pnl),
+        'symbol': t.asset.symbol,
+        'quantity': float(t.quantity),
+        'order_id': t.order_id,
+        'entry_price': float(t.entry_price),
+        'exit_price': float(t.exit_price) if t.exit_price else None,
+        'leverage': t.leverage,
+        'probability': float(t.probability)
+    } for t in trades], cls=DjangoJSONEncoder)
+
+    context['trades_json'] = trades_json
+    
+    return render(request, 'monitor.html', context)
