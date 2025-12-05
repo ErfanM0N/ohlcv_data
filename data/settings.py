@@ -186,6 +186,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'trade.tasks.send_weekly_balance_report',
         'schedule': crontab(minute=10, hour=0, day_of_week='sat'),  # Every Saturday at 00:10
     },  
+    'update-news': {
+        'task': 'news.tasks.update_news',
+        'schedule': crontab(minute=5, hour=0),  # Every day at 00:05
+    },
 }
 
 LOGGING = {

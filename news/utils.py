@@ -58,7 +58,9 @@ def fetch_and_save_articles(limit: int = 100, to_ts: Optional[int] = None):
 
         if not articles:
             logger.info("No articles returned from API")
-            return 0, None
+            return 0, 0, None
+
+        seen_combinations = set()
 
         for article_data in articles:
             try:
@@ -74,7 +76,17 @@ def fetch_and_save_articles(limit: int = 100, to_ts: Optional[int] = None):
                     datetime.fromtimestamp(article_data['PUBLISHED_ON']),
                     timezone=pytz.UTC
                 )
+
+
+                unique_key = (published_datetime, article_data['TITLE'])
+        
+                if unique_key in seen_combinations:
+                    logger.info(f"Duplicate in batch: {article_data['TITLE'][:50]}... - Skipping")
+                    continue
                 
+                seen_combinations.add(unique_key)
+                
+
                 article, is_created = NewsArticle.objects.update_or_create(
                     id=article_data['ID'],
                     defaults={
@@ -146,7 +158,7 @@ def fetch_all_articles_until(target_timestamp = None, delay: float = 0.5):
         
         logger.info(f"Batch {stats['total_batches']}: Fetching up to {datetime.fromtimestamp(current_ts)}")
         
-        updated, created, last_ts = fetch_and_save_articles(limit=batch_size, to_ts=current_ts)
+        updated, created, last_ts = fetch_and_save_articles(to_ts=current_ts)
         
         if updated == -1:
             stats['stopped_reason'] = 'error'
