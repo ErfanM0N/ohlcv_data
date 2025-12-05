@@ -223,3 +223,48 @@ def backfill_articles(target_timestamp: int):
     logger.info(f"Starting backfill from now to {datetime.fromtimestamp(target_timestamp)}")
     
     return fetch_all_articles_until(target_timestamp=target_timestamp)
+
+
+
+# IF Duplicate occurred remove by this
+'''
+from django.db.models import Count, Min
+from .models import NewsArticle
+
+def remove_duplicate_articles():
+    """
+    Remove duplicate articles, keeping only the first one (oldest by created_at)
+    """
+    # Find duplicates
+    duplicates = (
+        NewsArticle.objects
+        .values('published_on', 'title')
+        .annotate(
+            count=Count('id'),
+            min_id=Min('id')  # Keep the one with smallest ID
+        )
+        .filter(count__gt=1)
+    )
+    
+    deleted_count = 0
+    
+    for dup in duplicates:
+        # Get all articles with this published_on and title
+        articles = NewsArticle.objects.filter(
+            published_on=dup['published_on'],
+            title=dup['title']
+        ).order_by('id')
+        
+        # Keep the first one, delete the rest
+        keep_article = articles.first()
+        duplicates_to_delete = articles.exclude(id=keep_article.id)
+        
+        count = duplicates_to_delete.count()
+        duplicates_to_delete.delete()
+        deleted_count += count
+        
+        print(f"Kept article {keep_article.id}, deleted {count} duplicates")
+    
+    print(f"\nTotal duplicates removed: {deleted_count}")
+    return deleted_count
+'''
