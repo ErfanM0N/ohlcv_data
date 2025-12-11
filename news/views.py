@@ -15,8 +15,6 @@ def get_articles_by_timerange(request):
     Query Parameters:
         - start_time (required): Unix timestamp for start time
         - end_time (optional): Unix timestamp for end time. If not provided, uses current time
-        - limit (optional): Maximum number of results (default: 100, max: 1000)
-        - offset (optional): Offset for pagination (default: 0)
     
     Example:
         /api/articles/?start_time=1704067200&end_time=1704153600&limit=50
