@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'ohlc',
     'django_celery_beat',
     'trade',
-    'news'
+    'news',
+    'indicators',
 ]
 
 MIDDLEWARE = [

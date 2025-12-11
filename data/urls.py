@@ -41,7 +41,8 @@ urlpatterns = [
     path('open_positions/', get_open_positions_view, name='get_open_positions'),
     path('balance_history/', get_balance_history_view, name='get_balance_history'),
     path('', balance_history_view, name='balance_history'),
-    path('', include('news.urls')),
+    path('api/articles/', include('news.urls')),
+    path('api/indicators/', include('indicators.urls')),
 
 ]
 

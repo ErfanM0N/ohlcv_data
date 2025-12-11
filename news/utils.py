@@ -121,6 +121,7 @@ def fetch_and_save_articles(limit: int = 100, to_ts: Optional[int] = None):
         logger.error(f"Error fetching articles: {e}")
         return -1, created, last_timestamp
 
+
 # FETCH ALL ARTICLES UNTIL TARGET TIMESTAMP
 def fetch_all_articles_until(target_timestamp = None, delay: float = 0.5):
     """
@@ -206,6 +207,7 @@ def sync_new_articles():
     stats = fetch_all_articles_until()
     logger.info("Sync complete.")
     return stats
+
 
 # TO FILL FOR FIRST TIME HISTORICAL ARTICLES
 def backfill_articles(target_timestamp: int):
