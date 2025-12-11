@@ -17,7 +17,7 @@ def get_articles_by_timerange(request):
         - end_time (optional): Unix timestamp for end time. If not provided, uses current time
     
     Example:
-        /api/articles/?start_time=1704067200&end_time=1704153600&limit=50
+        /api/articles/?start_time=1704067200&end_time=1704153600
     """
     
     start_time = request.GET.get('start_time')
