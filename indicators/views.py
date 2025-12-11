@@ -24,6 +24,20 @@ TIMEFRAME_DELTA_MAP = {
     '1d': timedelta(days=1),
 }
 
+INDICATOR_DEFAULTS = {
+    'sma': 14,
+    'ema': 14,
+    'rsi': 14,
+    'macd': 34,           # Special: needs 26 + 9 - 1
+    'bollinger_bands': 20,
+    'stochastic': 14,  # Special: needs %K period + %D period - 1
+    'atr': 14,
+    'obv': 1,
+    'adx': 14,
+    'cci': 20,
+    'vwap': 1,
+}
+
 
 @api_view(['GET'])
 def calculate_indicator(request):
@@ -45,7 +59,7 @@ def calculate_indicator(request):
     end = request.query_params.get('end')
     indicator_name = request.query_params.get('indicator')
     timeframe = request.query_params.get('timeframe')
-    period = request.query_params.get('period')
+    period = request.query_params.get('period', '-1')  # Default to -1 to use indicator default
     
     # Validate required parameters
     if not all([symbol, start, indicator_name, timeframe]):
@@ -83,16 +97,27 @@ def calculate_indicator(request):
     
     # Get period value for calculating lookback
     try:
-        period_int = int(period) if period else 0  # default period
+        period_int = int(period) if period != '-1' else int(INDICATOR_DEFAULTS.get(indicator_name, 14))  # default period
     except ValueError:
         return Response(
             {'error': 'Period must be a valid integer'},
             status=status.HTTP_400_BAD_REQUEST
         )
+
+    if indicator_name == 'macd':
+        # MACD needs a longer lookback: 26 + 9 - 1 = 34
+        period_int = max(period_int, 34)
     
     # Calculate adjusted start time (period units before start)
     timeframe_delta = TIMEFRAME_DELTA_MAP[timeframe]
     adjusted_start = start_dt - (timeframe_delta * period_int)
+
+    if indicator_name == 'stochastic':
+        # Stochastic needs an additional period for %D
+        adjusted_start -= timeframe_delta * (3 - 1)  # assuming %D period is 3
+    elif indicator_name == 'adx':
+        # ADX needs double the period
+        adjusted_start -= timeframe_delta * (period_int) # additional period
     
     # Calculate adjusted end time (one unit before end)
     adjusted_end = end_dt - timeframe_delta

@@ -21,7 +21,7 @@ def sma(candles_data, period=14):
     sma_values = []
     closes = [float(candle['close']) for candle in candles_data]
     
-    for i in range(period - 1, len(closes)):
+    for i in range(period, len(closes)):
         sma = sum(closes[i - period + 1:i + 1]) / period
         sma_values.append({
             'timestamp': candles_data[i]['timestamp'],
@@ -63,7 +63,7 @@ def ema(candles_data, period=14):
             'value': round(ema_value, 8)
         })
     
-    return ema_values
+    return ema_values[1:]  # Exclude the first EMA which is just the SMA
 
 
 def rsi(candles_data, period=14):
@@ -134,36 +134,49 @@ def macd(candles_data, period=12):
     
     closes = [float(candle['close']) for candle in candles_data]
     
-    # Calculate fast EMA
+    # Calculate fast EMA (12-period)
     fast_multiplier = 2 / (fast_period + 1)
     fast_ema = sum(closes[:fast_period]) / fast_period
-    fast_emas = [fast_ema]
+    fast_emas = []
     
-    for i in range(fast_period, len(closes)):
-        fast_ema = (closes[i] - fast_ema) * fast_multiplier + fast_ema
-        fast_emas.append(fast_ema)
+    for i in range(len(closes)):
+        if i < fast_period:
+            continue
+        elif i == fast_period:
+            fast_emas.append(fast_ema)
+        else:
+            fast_ema = (closes[i] - fast_ema) * fast_multiplier + fast_ema
+            fast_emas.append(fast_ema)
     
-    # Calculate slow EMA
+    # Calculate slow EMA (26-period)
     slow_multiplier = 2 / (slow_period + 1)
     slow_ema = sum(closes[:slow_period]) / slow_period
-    slow_emas = [slow_ema]
+    slow_emas = []
     
-    for i in range(slow_period, len(closes)):
-        slow_ema = (closes[i] - slow_ema) * slow_multiplier + slow_ema
-        slow_emas.append(slow_ema)
+    for i in range(len(closes)):
+        if i < slow_period:
+            continue
+        elif i == slow_period:
+            slow_emas.append(slow_ema)
+        else:
+            slow_ema = (closes[i] - slow_ema) * slow_multiplier + slow_ema
+            slow_emas.append(slow_ema)
     
-    # Calculate MACD line
+    # Calculate MACD line (fast EMA - slow EMA)
     macd_line = []
-    start_idx = slow_period - fast_period
     for i in range(len(slow_emas)):
-        macd_val = fast_emas[start_idx + i] - slow_emas[i]
+        macd_val = fast_emas[i] - slow_emas[i]
         macd_line.append(macd_val)
     
-    # Calculate signal line (EMA of MACD)
+    if len(macd_line) < signal_period:
+        return {'error': f'Insufficient data after EMA calculation'}
+    
+    # Calculate signal line (9-period EMA of MACD)
     signal_multiplier = 2 / (signal_period + 1)
     signal_ema = sum(macd_line[:signal_period]) / signal_period
     
     macd_values = []
+    
     for i in range(signal_period - 1, len(macd_line)):
         if i == signal_period - 1:
             signal_val = signal_ema
@@ -173,8 +186,11 @@ def macd(candles_data, period=12):
         
         histogram = macd_line[i] - signal_val
         
+        # Calculate the correct timestamp index
+        timestamp_idx = slow_period + i
+        
         macd_values.append({
-            'timestamp': candles_data[slow_period + i]['timestamp'],
+            'timestamp': candles_data[timestamp_idx]['timestamp'],
             'macd': round(macd_line[i], 8),
             'signal': round(signal_val, 8),
             'histogram': round(histogram, 8)
@@ -201,7 +217,7 @@ def bollinger_bands(candles_data, period=20):
     bb_values = []
     std_dev = 2
     
-    for i in range(period - 1, len(closes)):
+    for i in range(period, len(closes)):
         window = closes[i - period + 1:i + 1]
         sma = sum(window) / period
         
@@ -236,7 +252,7 @@ def stochastic(candles_data, period=14):
     stoch_values = []
     k_values = []
     
-    for i in range(period - 1, len(candles_data)):
+    for i in range(period, len(candles_data)):
         window = candles_data[i - period + 1:i + 1]
         
         highest_high = max(float(candle['high']) for candle in window)
@@ -325,7 +341,7 @@ def obv(candles_data, period=1):
     obv_value = 0
     obv_values = []
     
-    for i in range(len(candles_data)):
+    for i in range(period, len(candles_data)):
         if i == 0:
             obv_value = float(candles_data[i]['volume'])
         else:
@@ -428,7 +444,7 @@ def cci(candles_data, period=20):
     
     cci_values = []
     
-    for i in range(period - 1, len(candles_data)):
+    for i in range(period, len(candles_data)):
         window = candles_data[i - period + 1:i + 1]
         
         # Calculate Typical Price
@@ -475,7 +491,7 @@ def vwap(candles_data, period=1):
     cumulative_volume = 0
     vwap_values = []
     
-    for candle in candles_data:
+    for candle in candles_data[period:]:
         typical_price = (float(candle['high']) + float(candle['low']) + float(candle['close'])) / 3
         volume = float(candle['volume'])
         
