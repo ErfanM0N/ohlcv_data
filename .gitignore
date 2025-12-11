@@ -10,3 +10,6 @@
 
 .venv/
 venv/
+
+# Ignore database backups
+db_backup/
