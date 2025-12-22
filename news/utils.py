@@ -104,10 +104,10 @@ def fetch_and_save_articles(limit: int = 100, to_ts: Optional[int] = None):
                 if is_created:
                     created += 1
                 
-                else:
-                    updated = 1
-                    logger.info(f"Found existing article: {article.id}, stopping...")
-                    return updated, created, article_data['PUBLISHED_ON']
+                # else:
+                #     updated = 1
+                #     logger.info(f"Found existing article: {article.id}, stopping...")
+                #     return updated, created, article_data['PUBLISHED_ON']
                 
             except Exception as e:
                 logger.error(f"Failed to save article {article_data.get('ID')}: {e}")
@@ -139,6 +139,15 @@ def fetch_all_articles_until(target_timestamp = None, delay: float = 0.5):
             - stopped_reason: Why the fetch stopped ('reached_target', 'found_existing', 'no_more_data', 'error')
             - final_timestamp: The oldest timestamp reached
     """
+
+    if NewsArticle.objects.count() == 0:
+        logger.info("No articles in database, starting from the beginning.")
+        return
+
+    latest_article = NewsArticle.objects.order_by('-published_on').first()
+
+    if not target_timestamp:
+       target_timestamp = latest_article.published_on.timestamp()
     
     stats = {
         'total_fetched': 0,
@@ -169,10 +178,10 @@ def fetch_all_articles_until(target_timestamp = None, delay: float = 0.5):
         stats['total_fetched'] += created
         stats['final_timestamp'] = last_ts
         
-        if updated == 1:
-            stats['stopped_reason'] = 'found_existing'
-            logger.info("Found existing article, stopping fetch")
-            break     
+        # if updated == 1:
+        #     stats['stopped_reason'] = 'found_existing'
+        #     logger.info("Found existing article, stopping fetch")
+        #     break     
         
         logger.info(f"Saved batch. Last article timestamp: {datetime.fromtimestamp(last_ts)}")
         

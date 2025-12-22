@@ -30,7 +30,7 @@ def initialize_candles(asset: Asset):
         logger.exception(f"An error occurred while fill asset {asset.symbol}: {e}")
 
 
-def init_15m_candles(client: Client, asset: Asset, from_year: int = 2017, from_month: int = 1, from_day: int = 1):
+def init_15m_candles(client: Client, asset: Asset, from_year: int = 2025, from_month: int = 12, from_day: int = 10):
     start_time = int(datetime(from_year, from_month, from_day, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
 
     # 15 min candles, 1000 as limit, 60 to convert min to sec and 1000 to convert sec to msec
@@ -73,7 +73,7 @@ def init_15m_candles(client: Client, asset: Asset, from_year: int = 2017, from_m
         end_time += converter_coef
 
 
-def init_1h_candles(client: Client, asset: Asset, from_year: int = 2017, from_month: int = 1, from_day: int = 1):
+def init_1h_candles(client: Client, asset: Asset, from_year: int = 2025, from_month: int = 12, from_day: int = 10):
     start_time = int(datetime(from_year, from_month, from_day, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
 
     # 60 min candles, 1000 as limit, 60 to convert min to sec and 1000 to convert sec to msec
@@ -117,7 +117,7 @@ def init_1h_candles(client: Client, asset: Asset, from_year: int = 2017, from_mo
         end_time += converter_coef
 
 
-def init_4h_candles(client: Client, asset: Asset, from_year: int = 2017, from_month: int = 1, from_day: int = 1):
+def init_4h_candles(client: Client, asset: Asset, from_year: int = 2025, from_month: int = 12, from_day: int = 10):
     start_time = int(datetime(from_year, from_month, from_day, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
 
     # 4 * 60 min candles, 1000 as limit, 60 to convert min to sec and 1000 to convert sec to msec
@@ -160,7 +160,7 @@ def init_4h_candles(client: Client, asset: Asset, from_year: int = 2017, from_mo
         end_time += converter_coef
 
 
-def init_1d_candles(client: Client, asset: Asset, from_year: int = 2017, from_month: int = 1, from_day: int = 1):
+def init_1d_candles(client: Client, asset: Asset, from_year: int = 2025, from_month: int = 12, from_day: int = 10):
     start_time = int(datetime(from_year, from_month, from_day, 0, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
 
     # 24 * 60 min candles, 1000 as limit, 60 to convert min to sec and 1000 to convert sec to msec
