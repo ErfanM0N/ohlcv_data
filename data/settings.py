@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'trade',
     'news',
     'indicators',
+    'fake_trade'
 ]
 
 MIDDLEWARE = [

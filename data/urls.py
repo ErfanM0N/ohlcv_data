@@ -21,7 +21,7 @@ from django.conf.urls.static import static
 from ohlc.views import get_1d_view, get_4h_view, get_1h_view, get_15m_view
 from asset.views import get_symbols_view, get_last_price_view
 from trade.views import get_positions_view, place_futures_order_view, get_balance_view, get_trade_history_view, open_position_view, get_position_history_view, get_open_positions_view, get_balance_history_view, balance_history_view
-
+from fake_trade.views import place_fake_order
 
 
 urlpatterns = [
@@ -43,6 +43,7 @@ urlpatterns = [
     path('', balance_history_view, name='balance_history'),
     path('api/articles/', include('news.urls')),
     path('api/indicators/', include('indicators.urls')),
+    path('api/demo/place-order/', place_fake_order, name='place_fake_order'),
 
 ]
 
