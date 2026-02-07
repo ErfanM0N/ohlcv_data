@@ -192,6 +192,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'news.tasks.update_news',
         'schedule': crontab(minute=5, hour=0),  # Every day at 00:05
     },
+    'fill_pending_demo':{
+        'task': 'fake_trade.tasks.fill_pending_positions',
+        'schedule': crontab(minute='*/10'),  # Every 10 minutes
+    },
+    'close_open_positions_demo':{
+        'task': 'fake_trade.tasks.close_open_positions',
+        'schedule': crontab(minute='*/10'),  # Every 10 minutes
+    },
 }
 
 LOGGING = {
