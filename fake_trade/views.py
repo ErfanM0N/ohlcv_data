@@ -91,3 +91,52 @@ def place_fake_order(request):
         send_telegram_message(msg)
         logger.exception(msg)
         return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+def reset_demo_config(request):
+    if request.method != 'POST':
+        send_telegram_message("❌ POST method required for /api/demo/reset-demo-config/")
+        return JsonResponse({'error': 'POST method required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        init_balance = data.get('init_balance', 10000.00)
+        max_open_positions = data.get('max_open_positions', 5)
+
+        # Create position to show reset
+        asset = Asset.objects.filter(symbol='BTCUSDT').first()
+        position = DemoPosition.objects.create(
+            asset=asset,
+            side='BUY',
+            quantity=0,
+            entry_price=0,
+            stop_loss=0,
+            take_profit=0,
+            margin_balance=0
+        )
+
+        # Close all existing positions
+        DemoPosition.objects.filter(status__in=['PENDING', 'OPEN']).update(status='CLOSED')
+
+        # Update or create config
+        config, created = DemoConfig.objects.get_or_create(id=1)
+        config.balance = Decimal(init_balance)
+        config.available_balance = Decimal(init_balance)
+        config.max_open_positions = max_open_positions
+        config.save()
+
+        msg = f"🔄 Demo configuration reset:\n*Initial Balance:* {init_balance}\n*Max Open Positions:* {max_open_positions}"
+        send_telegram_message(msg)
+        logger.info(msg)
+
+        return JsonResponse({
+            'success': True,
+            'init_balance': init_balance,
+            'max_open_positions': max_open_positions
+        })
+
+    except Exception as e:
+        msg = f"❌ Error resetting demo config: {str(e)}"
+        send_telegram_message(msg)
+        logger.exception(msg)
+        return JsonResponse({'error': str(e)}, status=500)
