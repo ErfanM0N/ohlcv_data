@@ -194,11 +194,11 @@ CELERY_BEAT_SCHEDULE = {
     },
     'fill_pending_demo':{
         'task': 'fake_trade.tasks.fill_pending_positions',
-        'schedule': crontab(minute='*/10'),  # Every 10 minutes
+        'schedule': crontab(minute='*/1'),  # Every 1 minute
     },
     'close_open_positions_demo':{
         'task': 'fake_trade.tasks.close_open_positions',
-        'schedule': crontab(minute='*/10'),  # Every 10 minutes
+        'schedule': crontab(minute='*/1'),  # Every 1 minute
     },
 }
 
