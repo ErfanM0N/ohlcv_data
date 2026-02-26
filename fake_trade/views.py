@@ -140,3 +140,29 @@ def reset_demo_config(request):
         send_telegram_message(msg)
         logger.exception(msg)
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def get_open_positions(request):
+    if request.method != 'GET':
+        send_telegram_message("❌ GET method required for /api/demo/open-positions/")
+        return JsonResponse({'error': 'GET method required'}, status=405)
+    try:
+        positions = DemoPosition.objects.filter(status__in=['PENDING', 'OPEN'])
+        data = []
+        for pos in positions:
+            data.append({
+                'id': pos.id,
+                'symbol': pos.asset.symbol,
+                'side': pos.side,
+                'quantity': pos.quantity,
+                'entry_price': pos.entry_price,
+                'stop_loss': pos.stop_loss,
+                'take_profit': pos.take_profit,
+                'status': pos.status,
+            })
+        return JsonResponse({'open_positions': data})
+    except Exception as e:
+        msg = f"❌ Error fetching open positions: {str(e)}"
+        send_telegram_message(msg)
+        logger.exception(msg)
+        return JsonResponse({'error': str(e)}, status=500)
